@@ -1,11 +1,40 @@
 {
-  "version": 1,
+  "version": 3,
   "lists": [
+    {
+      "id": "primary",
+      "title": "小学",
+      "subtitle": "PRIMARY",
+      "color": "teal",
+      "group": "校内词库",
+      "source": "义务教育英语课程标准（2022年版）",
+      "count": 505
+    },
+    {
+      "id": "junior",
+      "title": "初中",
+      "subtitle": "JUNIOR HIGH",
+      "color": "blue",
+      "group": "校内词库",
+      "source": "义务教育英语课程标准（2022年版）",
+      "count": 1095
+    },
+    {
+      "id": "senior",
+      "title": "高中",
+      "subtitle": "SENIOR HIGH",
+      "color": "coral",
+      "group": "校内词库",
+      "source": "普通高中英语课程标准词汇（2025年整理版）",
+      "count": 1744
+    },
     {
       "id": "cet4",
       "title": "四级",
       "subtitle": "CET-4",
       "color": "teal",
+      "group": "国内考试",
+      "source": "ECDICT",
       "count": 3846
     },
     {
@@ -13,6 +42,8 @@
       "title": "六级",
       "subtitle": "CET-6",
       "color": "blue",
+      "group": "国内考试",
+      "source": "ECDICT",
       "count": 5406
     },
     {
@@ -20,6 +51,8 @@
       "title": "托福",
       "subtitle": "TOEFL",
       "color": "coral",
+      "group": "留学考试",
+      "source": "ECDICT",
       "count": 6978
     },
     {
@@ -27,6 +60,8 @@
       "title": "雅思",
       "subtitle": "IELTS",
       "color": "amber",
+      "group": "留学考试",
+      "source": "ECDICT",
       "count": 5038
     },
     {
@@ -34,7 +69,36 @@
       "title": "GRE",
       "subtitle": "GRADUATE",
       "color": "plum",
+      "group": "留学考试",
+      "source": "ECDICT",
       "count": 7504
+    },
+    {
+      "id": "ngsl",
+      "title": "日常高频",
+      "subtitle": "NGSL 1.2",
+      "color": "teal",
+      "group": "实用英语",
+      "source": "New General Service List 1.2",
+      "count": 2809
+    },
+    {
+      "id": "phrasal",
+      "title": "短语动词",
+      "subtitle": "TOP 150",
+      "color": "amber",
+      "group": "实用英语",
+      "source": "University of Minnesota CCAPS",
+      "count": 146
+    },
+    {
+      "id": "idioms",
+      "title": "美式习语",
+      "subtitle": "AMERICAN IDIOMS",
+      "color": "plum",
+      "group": "实用英语",
+      "source": "Most Common American Idioms（清洗版）",
+      "count": 1344
     }
   ]
 }

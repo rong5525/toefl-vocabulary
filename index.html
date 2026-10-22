@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="词汇卡" />
-    <meta name="description" content="四级、六级、托福、雅思和 GRE 多词库学习卡，支持顺序与乱序学习。" />
+    <meta name="description" content="从小学课标到 GRE、日常高频、短语动词和美式习语的多词库学习卡。" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -45,15 +45,9 @@
           <button class="order-option active" type="button" data-order="sequential" aria-pressed="true"><strong>顺序</strong><small>按词频由常用到进阶</small></button>
           <button class="order-option" type="button" data-order="random" aria-pressed="false"><strong>乱序</strong><small>每次重新打乱单词</small></button>
         </div>
-        <div class="library-grid" id="libraryGrid">
-          <button class="library-option teal" type="button" data-list="cet4"><span>四级</span><small>CET-4 · 3,846 词</small><b>→</b></button>
-          <button class="library-option blue" type="button" data-list="cet6"><span>六级</span><small>CET-6 · 5,406 词</small><b>→</b></button>
-          <button class="library-option coral" type="button" data-list="toefl"><span>托福</span><small>TOEFL · 6,978 词</small><b>→</b></button>
-          <button class="library-option amber" type="button" data-list="ielts"><span>雅思</span><small>IELTS · 5,038 词</small><b>→</b></button>
-          <button class="library-option plum" type="button" data-list="gre"><span>GRE</span><small>GRADUATE · 7,504 词</small><b>→</b></button>
-        </div>
+        <div class="library-grid" id="libraryGrid"></div>
         <p class="library-loading" id="libraryLoading" hidden>正在载入词库…</p>
-        <p class="library-note">同一个单词在不同词库中共享熟悉度，避免重复背诵。</p>
+        <p class="library-note">每位用户、每个词库分别保存进度；切换词库不会互相覆盖。</p>
       </div>
     </section>
 
@@ -218,14 +212,14 @@
           <p class="eyebrow">ADMIN EXPORT</p>
           <h3>管理员导出</h3>
           <label>选择用户<select id="adminUserSelect"><option value="all">全部用户</option></select></label>
-          <label>选择词库<select id="adminListSelect"><option value="all">全部词库</option><option value="cet4">四级</option><option value="cet6">六级</option><option value="toefl">托福</option><option value="ielts">雅思</option><option value="gre">GRE</option></select></label>
+          <label>选择词库<select id="adminListSelect"><option value="all">全部词库</option></select></label>
           <button class="export-button" id="adminExportButton" type="button">导出所选用户 CSV</button>
           <p>管理员可以按用户和词库导出熟悉度及学习记录。</p>
         </section>
         <button class="secondary-button" id="logoutButton" type="button">退出登录</button>
         <button class="danger-button" id="resetButton" type="button">清空所有词库的学习进度</button>
-        <p class="source-note">词库数据：ECDICT（<a href="./THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">MIT License</a>）</p>
-        <p class="version">英语词汇卡 · Version 2.1</p>
+        <p class="source-note">词库来源与许可见 <a href="./THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">第三方说明</a></p>
+        <p class="version">英语词汇卡 · Version 3.0</p>
       </form>
     </dialog>
 

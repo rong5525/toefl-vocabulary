@@ -56,7 +56,7 @@ button { font: inherit; }
 .auth-error { margin: 0; color: var(--coral); text-align: center; font-size: 12px; }
 .auth-note { margin: 21px 0 0; color: #aaa8a1; text-align: center; font-size: 10px; letter-spacing: .06em; }
 
-.library-card { width: min(100%, 520px); padding: 30px; border: 1px solid rgba(21,39,56,.08); border-radius: 28px; background: var(--card); box-shadow: var(--shadow); }
+.library-card { width: min(100%, 520px); max-height: calc(100dvh - 40px); padding: 30px; overflow-y: auto; border: 1px solid rgba(21,39,56,.08); border-radius: 28px; background: var(--card); box-shadow: var(--shadow); }
 .library-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .library-head h1 { font-size: 35px; }
 .library-logout { padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
@@ -68,6 +68,7 @@ button { font: inherit; }
 .order-option small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.35; }
 .order-option.active { border-color: var(--teal); background: var(--teal-soft); box-shadow: inset 0 0 0 1px rgba(47,125,117,.12); }
 .library-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; transition: opacity .2s ease; }
+.library-group-title { grid-column: 1 / -1; margin: 10px 2px 0; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
 .library-grid.loading { opacity: .45; pointer-events: none; }
 .library-option { position: relative; min-height: 86px; padding: 15px 38px 14px 16px; border: 0; border-radius: 17px; color: var(--ink); text-align: left; overflow: hidden; }
 .library-option span, .library-option small { display: block; }
@@ -78,7 +79,7 @@ button { font: inherit; }
 .library-option.blue { background: #dde8f3; color: #345b7d; }
 .library-option.coral { background: var(--coral-soft); color: #a83e33; }
 .library-option.amber { background: var(--amber-soft); color: #8c570f; }
-.library-option.plum { grid-column: 1 / -1; background: #e9e1ef; color: #6c467b; }
+.library-option.plum { background: #e9e1ef; color: #6c467b; }
 .library-loading { margin: 13px 0 0; color: var(--teal); text-align: center; font-size: 11px; font-weight: 700; }
 .library-note { margin: 16px 0 0; color: #aaa8a1; text-align: center; font-size: 9px; line-height: 1.5; }
 
@@ -286,6 +287,52 @@ dialog::backdrop { background: rgba(21,39,56,.45); backdrop-filter: blur(4px); }
   .decision-button { min-height: 54px; border-radius: 14px; font-size: 11px; }
   .decision-button small { font-size: 7px; }
   .button-icon { display: none; }
+}
+
+@media (max-width: 699px) {
+  .app-shell { padding: max(8px, env(safe-area-inset-top)) 14px max(8px, env(safe-area-inset-bottom)); }
+  .topbar h1 { font-size: 23px; }
+  .topbar .eyebrow { font-size: 8px; margin-bottom: 2px; }
+  .top-actions { gap: 5px; }
+  .account-pill { min-height: 31px; padding: 5px 9px; }
+  .icon-button { width: 34px; height: 34px; }
+  .icon-button svg { width: 18px; }
+  .study-context { margin-top: 6px; gap: 5px; }
+  .study-context button { min-height: 27px; padding: 4px 9px; font-size: 9px; }
+  .progress-panel { margin-top: 7px; }
+  .progress-copy { font-size: 10px; }
+  .progress-copy strong { font-size: 11px; }
+  .progress-track { height: 4px; margin-top: 4px; }
+  .stats-row { margin-top: 4px; gap: 13px; font-size: 9px; }
+  .mode-tabs { margin: 8px 0 7px; padding: 3px; gap: 4px; }
+  .tab { padding: 6px 8px; font-size: 11px; }
+  .card-stage { min-height: 0; align-items: start; }
+  .word-card { min-height: clamp(310px, 47dvh, 410px); max-height: calc(100dvh - 242px); padding: 15px 19px 17px; border-radius: 22px; overflow-y: auto; }
+  .word-card.quiz-mode { min-height: clamp(390px, 58dvh, 510px); max-height: calc(100dvh - 190px); justify-content: flex-start; padding-top: 14px; }
+  .card-number { top: 15px; left: 18px; font-size: 11px; }
+  .speak-button { top: 10px; right: 12px; width: 37px; height: 37px; }
+  .part { margin: 9px 0 4px; font-size: 13px; }
+  .card-front h2 { font-size: clamp(34px, 10.5vw, 48px); }
+  .phonetic { margin-top: 7px; font-size: 13px; }
+  .familiarity-meter { margin-top: 8px; gap: 6px; }
+  .familiarity-meter span { font-size: 15px; }
+  .tap-hint { margin-top: 10px; font-size: 9px; }
+  .divider { margin: 13px auto 11px; }
+  .card-answer h3 { font-size: 21px; line-height: 1.45; }
+  .definition { margin-top: 7px; font-size: 15px; }
+  .example { margin-top: 10px; font-size: 14px; line-height: 1.48; }
+  .quiz-panel { margin-top: 12px; }
+  .quiz-prompt { margin-bottom: 7px; }
+  .quiz-options { gap: 7px; }
+  .quiz-option { min-height: 48px; padding: 10px 12px; font-size: 15px; line-height: 1.42; }
+  .quiz-feedback { margin-top: 7px; }
+  .gesture-hint { padding: 6px 6px 5px; font-size: 9px; }
+  .decision-button { min-height: 50px; }
+  .library-card { max-height: calc(100dvh - 24px); padding: 21px 17px; }
+  .library-head h1 { font-size: 29px; }
+  .library-copy { margin: 10px 0 12px; }
+  .order-option { min-height: 57px; }
+  .library-option { min-height: 72px; padding-block: 11px; }
 }
 
 @media (min-width: 700px) {

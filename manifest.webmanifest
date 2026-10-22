@@ -1,7 +1,7 @@
 {
   "name": "英语词汇卡",
   "short_name": "词汇卡",
-  "description": "四级、六级、托福、雅思和 GRE 多词库学习卡，支持顺序与乱序学习。",
+  "description": "覆盖校内、考试和日常实用英语的多词库学习卡，支持顺序与乱序学习。",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

@@ -25,3 +25,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Additional vocabulary sources
+=============================
+
+School curriculum lists
+-----------------------
+Primary and junior-high stage divisions follow the public vocabulary appendix
+of China's Compulsory Education English Curriculum Standard (2022 edition).
+The senior-high additions are derived from a public transcription of the 2025
+general senior-high vocabulary list, with compulsory-stage entries removed.
+
+New General Service List 1.2
+----------------------------
+https://www.newgeneralservicelist.com/new-general-service-list
+Used under Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0).
+
+150 Most Common Phrasal Verbs
+-----------------------------
+https://ccaps.umn.edu/esl-resources/students/vocabulary/150-most-common-phrasal-verbs
+Definitions and ordering are sourced from University of Minnesota CCAPS.
+
+Most Common American Idioms
+---------------------------
+https://github.com/xiaolai/most-common-american-idioms
+The upstream author states "Copyright NOT reserved". This application uses a
+cleaned subset: exact duplicates and entries missing a Chinese explanation,
+English explanation, or example sentence are removed. Upstream content was
+largely AI-generated and may still contain occasional inaccuracies.

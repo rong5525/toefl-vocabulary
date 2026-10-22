@@ -101,14 +101,14 @@ const FEATURED_TOEFL_100 = [
   {w:"adjacent",p:"/əˈdʒeɪsənt/",t:"adj.",z:"邻近的；毗连的",d:"next to or very near something",e:"The market served villages adjacent to the river."}
 ];
 
-const LIST_CATALOG = [
+let LIST_CATALOG = [
   { id: "cet4", title: "四级", subtitle: "CET-4", count: 3846, color: "teal" },
   { id: "cet6", title: "六级", subtitle: "CET-6", count: 5406, color: "blue" },
   { id: "toefl", title: "托福", subtitle: "TOEFL", count: 6978, color: "coral" },
   { id: "ielts", title: "雅思", subtitle: "IELTS", count: 5038, color: "amber" },
   { id: "gre", title: "GRE", subtitle: "GRADUATE", count: 7504, color: "plum" }
 ];
-const STORAGE_PREFIX = "toefl100-cloud-cache-v1";
+const STORAGE_PREFIX = "vocabulary-cards-v3";
 const STAR_PERCENTAGES = [0, 20, 40, 60, 80, 90];
 const cloudConfig = window.TOEFL_CLOUD_CONFIG;
 const cloudClient = window.supabase && cloudConfig
@@ -149,20 +149,61 @@ let quizOptions = [];
 let quizLocked = false;
 let quizAnswerTimer = null;
 
-function userStorageKey(userId) {
-  return `${STORAGE_PREFIX}:${userId}`;
+function userStorageKey(userId, listId = currentList?.id) {
+  return `${STORAGE_PREFIX}:progress:${userId}:${listId || "none"}`;
 }
 
-function loadCachedState(userId) {
+function loadCachedState(userId, listId) {
   try {
-    const saved = JSON.parse(localStorage.getItem(userStorageKey(userId)));
+    const saved = JSON.parse(localStorage.getItem(userStorageKey(userId, listId)));
     if (saved && saved.progress && typeof saved.progress === "object") return saved;
   } catch (_) {}
   return { progress: {} };
 }
 
 function saveState() {
-  if (currentUser) localStorage.setItem(userStorageKey(currentUser.id), JSON.stringify(state));
+  if (currentUser && currentList) localStorage.setItem(userStorageKey(currentUser.id, currentList.id), JSON.stringify(state));
+}
+
+function renderLibraryCatalog() {
+  els.libraryGrid.replaceChildren();
+  let groupName = "";
+  for (const list of LIST_CATALOG) {
+    if (list.group && list.group !== groupName) {
+      groupName = list.group;
+      const heading = document.createElement("h2");
+      heading.className = "library-group-title";
+      heading.textContent = groupName;
+      els.libraryGrid.append(heading);
+    }
+    const button = document.createElement("button");
+    button.className = `library-option ${list.color || "teal"}`;
+    button.type = "button";
+    button.dataset.list = list.id;
+    const title = document.createElement("span");
+    title.textContent = list.title;
+    const detail = document.createElement("small");
+    detail.textContent = `${list.subtitle} · ${Number(list.count || 0).toLocaleString("zh-CN")} 词`;
+    const arrow = document.createElement("b");
+    arrow.textContent = "→";
+    button.append(title, detail, arrow);
+    els.libraryGrid.append(button);
+  }
+  els.adminListSelect.replaceChildren(new Option("全部词库", "all"));
+  LIST_CATALOG.forEach(list => els.adminListSelect.add(new Option(list.title, list.id)));
+}
+
+async function loadCatalog() {
+  try {
+    const response = await fetch("./data/catalog.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.lists) || !payload.lists.length) throw new Error("Catalog is empty");
+    LIST_CATALOG = payload.lists;
+  } catch (error) {
+    console.warn("Using built-in catalog", error);
+  }
+  renderLibraryCatalog();
 }
 
 function shuffled(items) {
@@ -271,6 +312,15 @@ async function selectWordList(listId) {
     const payload = await getWordList(listId);
     currentList = { ...info, ...payload, words: undefined };
     WORDS = payload.words;
+    state = loadCachedState(currentUser.id, listId);
+    try {
+      state = await loadCloudState(currentUser.id, listId);
+      saveState();
+      setCloudStatus("synced");
+    } catch (error) {
+      console.warn("Using cached progress for selected list", error);
+      setCloudStatus("offline");
+    }
     rebuildOrder();
     mode = "study";
     reviewQueue = [];
@@ -309,11 +359,12 @@ function cloudRowToProgress(row) {
   };
 }
 
-async function loadCloudState(userId) {
+async function loadCloudState(userId, listId) {
   const { data, error } = await cloudClient
     .from("user_word_progress")
     .select("word_key,stars,percent,review_count,last_action,updated_at")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("list_id", listId);
   if (error) throw error;
   return {
     progress: Object.fromEntries((data || []).map(row => [row.word_key, cloudRowToProgress(row)]))
@@ -323,18 +374,13 @@ async function loadCloudState(userId) {
 async function activateSession(session) {
   currentUser = session.user;
   currentProfile = { username: session.user.email?.split("@")[0] || "用户", role: "user" };
-  state = loadCachedState(currentUser.id);
+  state = { progress: {} };
   let status = "synced";
 
   try {
-    const [{ data: profile, error: profileError }, remoteState] = await Promise.all([
-      cloudClient.from("profiles").select("username,role").eq("user_id", currentUser.id).single(),
-      loadCloudState(currentUser.id)
-    ]);
+    const { data: profile, error: profileError } = await cloudClient.from("profiles").select("username,role").eq("user_id", currentUser.id).single();
     if (profileError) throw profileError;
     currentProfile = profile;
-    state = remoteState;
-    saveState();
   } catch (error) {
     console.warn("Using cached progress", error);
     status = "offline";
@@ -383,6 +429,7 @@ function showLogin(message = "") {
 }
 
 async function initializeApp() {
+  await loadCatalog();
   if (!cloudClient) {
     showLogin("云端服务加载失败，请检查网络后刷新页面。");
     return;
@@ -407,6 +454,7 @@ function queueCloud(task) {
 function progressRow(wordKey, entry, userId = currentUser.id) {
   return {
     user_id: userId,
+    list_id: currentList.id,
     word_key: wordKey,
     stars: entry.stars,
     percent: entry.percent,
@@ -418,14 +466,16 @@ function progressRow(wordKey, entry, userId = currentUser.id) {
 
 function syncDecision(wordKey, previous, next) {
   const userId = currentUser.id;
+  const listId = currentList.id;
   const row = progressRow(wordKey, next, userId);
   queueCloud(async () => {
     const { error: progressError } = await cloudClient
       .from("user_word_progress")
-      .upsert(row, { onConflict: "user_id,word_key" });
+      .upsert(row, { onConflict: "user_id,list_id,word_key" });
     if (progressError) throw progressError;
     const { error: eventError } = await cloudClient.from("review_events").insert({
       user_id: userId,
+      list_id: listId,
       word_key: wordKey,
       action: next.lastAction,
       previous_stars: previous?.stars ?? 0,
@@ -439,11 +489,12 @@ function syncDecision(wordKey, previous, next) {
 
 function syncEntry(wordKey, entry) {
   const userId = currentUser.id;
+  const listId = currentList.id;
   const row = entry ? progressRow(wordKey, entry, userId) : null;
   queueCloud(async () => {
     const query = entry
-      ? cloudClient.from("user_word_progress").upsert(row, { onConflict: "user_id,word_key" })
-      : cloudClient.from("user_word_progress").delete().eq("user_id", userId).eq("word_key", wordKey);
+      ? cloudClient.from("user_word_progress").upsert(row, { onConflict: "user_id,list_id,word_key" })
+      : cloudClient.from("user_word_progress").delete().eq("user_id", userId).eq("list_id", listId).eq("word_key", wordKey);
     const { error } = await query;
     if (error) throw error;
   });
@@ -791,7 +842,9 @@ function showToast(message) {
 }
 
 function csvCell(value) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const raw = String(value ?? "");
+  const safe = /^[=+@]/.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replaceAll('"', '""')}"`;
 }
 
 function buildExportFile() {
@@ -869,7 +922,7 @@ async function exportAdminRecords() {
   try {
     const [{ data: profiles, error: profilesError }, { data: progress, error: progressError }] = await Promise.all([
       cloudClient.from("profiles").select("user_id,username").order("username"),
-      cloudClient.from("user_word_progress").select("user_id,word_key,stars,percent,review_count,last_action,updated_at")
+      cloudClient.from("user_word_progress").select("user_id,list_id,word_key,stars,percent,review_count,last_action,updated_at")
     ]);
     if (profilesError) throw profilesError;
     if (progressError) throw progressError;
@@ -879,11 +932,11 @@ async function exportAdminRecords() {
     const users = selectedUser === "all" ? profiles : profiles.filter(profile => profile.user_id === selectedUser);
     const lists = selectedList === "all" ? LIST_CATALOG : LIST_CATALOG.filter(list => list.id === selectedList);
     const payloads = await Promise.all(lists.map(async list => ({ list, payload: await getWordList(list.id) })));
-    const progressMap = new Map(progress.map(entry => [`${entry.user_id}:${entry.word_key}`, entry]));
+    const progressMap = new Map(progress.map(entry => [`${entry.user_id}:${entry.list_id}:${entry.word_key}`, entry]));
     const actionNames = { unknown: "完全不会 / 答错", familiar: "熟悉度 +1", mastered: "完全掌握 / 答对" };
     const header = ["用户", "词库", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
     const rows = users.flatMap(profile => payloads.flatMap(({ list, payload }) => payload.words.map((word, index) => {
-        const entry = progressMap.get(`${profile.user_id}:${word.w}`);
+        const entry = progressMap.get(`${profile.user_id}:${list.id}:${word.w}`);
         const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
         return [
           profile.username,
@@ -1076,6 +1129,8 @@ els.emptyAction.addEventListener("click", () => {
 els.resetButton.addEventListener("click", () => {
   if (!window.confirm("确定要清空当前账号在所有词库中的学习进度吗？")) return;
   state = { progress: {} };
+  const localPrefix = `${STORAGE_PREFIX}:progress:${currentUser.id}:`;
+  Object.keys(localStorage).filter(key => key.startsWith(localPrefix)).forEach(key => localStorage.removeItem(key));
   mode = "study";
   reviewQueue = [];
   reviewNextRound = [];
