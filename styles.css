@@ -140,8 +140,12 @@ h1 span { color: var(--coral); font-style: italic; }
 .record-status.known { color: var(--teal); background: var(--teal-soft); }
 .record-status.learning { color: var(--coral); background: var(--coral-soft); }
 .record-empty { padding: 45px 0; color: var(--muted); text-align: center; font-size: 13px; }
-.record-review-button { width: 100%; margin-top: 13px; }
+.record-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 13px; }
+.record-review-button { width: 100%; }
 .record-review-button:disabled { display: none; }
+.export-button { min-height: 45px; padding: 10px 13px; border: 1px solid var(--ink); border-radius: 14px; background: transparent; color: var(--ink); font-size: 12px; font-weight: 800; }
+.export-button svg { width: 16px; margin-right: 4px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+.export-note { margin: 11px 8px 0; color: var(--muted); text-align: center; font-size: 9px; line-height: 1.45; }
 .storage-note { margin: 12px 8px 0; color: #a29f97; text-align: center; font-size: 9px; line-height: 1.45; }
 
 dialog { width: min(calc(100% - 28px), 470px); padding: 0; border: 0; border-radius: 25px; background: var(--card); color: var(--ink); box-shadow: 0 28px 90px rgba(21,39,56,.3); }
@@ -165,6 +169,10 @@ dialog::backdrop { background: rgba(21,39,56,.45); backdrop-filter: blur(4px); }
   .mode-tabs { margin: 14px 0 10px; }
   .card-stage, .word-card { min-height: 310px; }
   .tap-hint { margin-top: 23px; }
+}
+
+@media (max-width: 390px) {
+  .record-actions { grid-template-columns: 1fr; }
 }
 
 @media (min-width: 700px) {

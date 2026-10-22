@@ -62,7 +62,14 @@
         </div>
         <div class="record-list" id="recordList"></div>
         <div class="record-empty" id="recordEmpty" hidden>这里还没有单词</div>
-        <button class="primary-button record-review-button" id="recordReviewButton" type="button">复习不会的词</button>
+        <div class="record-actions">
+          <button class="export-button" id="exportButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>
+            导出 Excel CSV
+          </button>
+          <button class="primary-button record-review-button" id="recordReviewButton" type="button">复习不会的词</button>
+        </div>
+        <p class="export-note">导出全部 100 个单词，包含“已会 / 不会 / 未学习”状态，可直接用 Excel 打开。</p>
         <p class="storage-note">记录仅保存在这台设备上。清除 Safari 网站数据或删除 App 会清空记录。</p>
       </section>
 
@@ -131,7 +138,7 @@
           <p>安装后可像普通 App 一样打开，学过的进度会保存在本机。</p>
         </section>
         <button class="danger-button" id="resetButton" type="button">清空全部学习进度</button>
-        <p class="version">TOEFL 100 · Version 1.1</p>
+        <p class="version">TOEFL 100 · Version 1.2</p>
       </form>
     </dialog>
 

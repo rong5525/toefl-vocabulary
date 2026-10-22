@@ -106,7 +106,7 @@ const els = Object.fromEntries([
   "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText",
   "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","recordTab","emptyState","emptyTitle",
   "emptyCopy","emptyAction","dontKnowButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
-  "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton"
+  "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton"
 ].map(id => [id, document.getElementById(id)]));
 
 let state = loadState();
@@ -339,6 +339,52 @@ function showToast(message) {
   showToast.timer = setTimeout(() => els.toast.classList.remove("show"), 1800);
 }
 
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function buildExportFile() {
+  const header = ["序号", "单词", "学习状态", "音标", "词性", "中文释义", "英文解释", "例句"];
+  const rows = WORDS.map((word, index) => {
+    const savedStatus = state.statuses[word.w];
+    const status = savedStatus === "known" ? "已会" : savedStatus === "learning" ? "不会" : "未学习";
+    return [index + 1, word.w, status, word.p, word.t, word.z, word.d, word.e];
+  });
+  const csv = "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+  const day = new Date().toLocaleDateString("en-CA");
+  return new File([csv], `TOEFL-100-学习记录-${day}.csv`, { type: "text/csv;charset=utf-8" });
+}
+
+function downloadFile(file) {
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.name;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  showToast("记录已导出，可用 Excel 打开");
+}
+
+async function exportRecords() {
+  const file = buildExportFile();
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "TOEFL 100 学习记录",
+        text: "TOEFL 100 单词分类记录，可直接使用 Excel 打开。"
+      });
+      showToast("记录已导出");
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+  downloadFile(file);
+}
+
 function resetDrag() {
   els.wordCard.classList.remove("dragging");
   els.wordCard.style.transform = "";
@@ -392,6 +438,7 @@ els.recordTab.addEventListener("click", () => setMode("record"));
 els.recordLearningButton.addEventListener("click", () => { recordFilter = "learning"; render(); });
 els.recordKnownButton.addEventListener("click", () => { recordFilter = "known"; render(); });
 els.recordReviewButton.addEventListener("click", () => setMode("review"));
+els.exportButton.addEventListener("click", exportRecords);
 els.settingsButton.addEventListener("click", () => els.settingsDialog.showModal());
 
 els.emptyAction.addEventListener("click", () => {
