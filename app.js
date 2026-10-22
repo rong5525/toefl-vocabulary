@@ -113,7 +113,10 @@ const STAR_PERCENTAGES = [0, 20, 40, 60, 80, 90];
 const cloudConfig = window.TOEFL_CLOUD_CONFIG;
 const cloudClient = window.supabase && cloudConfig
   ? window.supabase.createClient(cloudConfig.url, cloudConfig.publishableKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      global: {
+        fetch: (input, init = {}) => fetch(input, { ...init, cache: "no-store" })
+      }
     })
   : null;
 const els = Object.fromEntries([
@@ -314,6 +317,7 @@ async function selectWordList(listId) {
     WORDS = payload.words;
     state = loadCachedState(currentUser.id, listId);
     try {
+      await cloudQueue.catch(() => {});
       state = await loadCloudState(currentUser.id, listId);
       saveState();
       setCloudStatus("synced");
@@ -1143,7 +1147,7 @@ els.resetButton.addEventListener("click", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=31").catch(() => {}));
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=32").catch(() => {}));
 }
 
 initializeApp();
