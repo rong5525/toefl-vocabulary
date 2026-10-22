@@ -115,7 +115,7 @@ const els = Object.fromEntries([
   "emptyCopy","emptyAction","dontKnowButton","familiarButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
   "familiarityMeter","starText","familiarityText","downStamp",
   "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton",
-  "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton"
+  "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton","adminBox","adminUserSelect","adminExportButton"
 ].map(id => [id, document.getElementById(id)]));
 
 let state = { progress: {} };
@@ -197,6 +197,8 @@ async function activateSession(session) {
 
   els.userName.textContent = currentProfile.username;
   els.settingsUserName.textContent = currentProfile.username;
+  els.adminBox.hidden = currentProfile.role !== "admin";
+  if (currentProfile.role === "admin") loadAdminUsers();
   els.authOverlay.hidden = true;
   els.authLoading.hidden = true;
   els.appShell.inert = false;
@@ -609,6 +611,64 @@ async function exportRecords() {
   downloadFile(file);
 }
 
+async function loadAdminUsers() {
+  const { data, error } = await cloudClient.from("profiles").select("user_id,username").order("username");
+  if (error) {
+    setCloudStatus("offline");
+    return;
+  }
+  els.adminUserSelect.replaceChildren(new Option("全部用户", "all"));
+  data.forEach(profile => els.adminUserSelect.add(new Option(profile.username, profile.user_id)));
+}
+
+async function exportAdminRecords() {
+  els.adminExportButton.disabled = true;
+  els.adminExportButton.textContent = "正在准备…";
+  try {
+    const [{ data: profiles, error: profilesError }, { data: progress, error: progressError }] = await Promise.all([
+      cloudClient.from("profiles").select("user_id,username").order("username"),
+      cloudClient.from("user_word_progress").select("user_id,word_key,stars,percent,review_count,last_action,updated_at")
+    ]);
+    if (profilesError) throw profilesError;
+    if (progressError) throw progressError;
+
+    const selected = els.adminUserSelect.value;
+    const users = selected === "all" ? profiles : profiles.filter(profile => profile.user_id === selected);
+    const progressMap = new Map(progress.map(entry => [`${entry.user_id}:${entry.word_key}`, entry]));
+    const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
+    const header = ["用户", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
+    const rows = users.flatMap(profile => WORDS.map((word, index) => {
+      const entry = progressMap.get(`${profile.user_id}:${word.w}`);
+      const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
+      return [
+        profile.username,
+        index + 1,
+        word.w,
+        status,
+        entry?.stars ?? "",
+        entry ? `${entry.percent}%` : "",
+        entry?.review_count ?? 0,
+        entry ? actionNames[entry.last_action] : "",
+        entry?.updated_at ? new Date(entry.updated_at).toLocaleString("zh-CN", { hour12: false }) : "",
+        word.p,
+        word.t,
+        word.z,
+        word.d,
+        word.e
+      ];
+    }));
+    const csv = "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+    const day = new Date().toLocaleDateString("en-CA");
+    downloadFile(new File([csv], `TOEFL-100-管理员记录-${day}.csv`, { type: "text/csv;charset=utf-8" }));
+  } catch (error) {
+    console.warn("Admin export failed", error);
+    showToast("导出失败，请检查网络后重试");
+  } finally {
+    els.adminExportButton.disabled = false;
+    els.adminExportButton.textContent = "导出所选用户 CSV";
+  }
+}
+
 function resetDrag() {
   els.wordCard.classList.remove("dragging");
   els.wordCard.style.transform = "";
@@ -685,6 +745,7 @@ els.recordLearningButton.addEventListener("click", () => { recordFilter = "learn
 els.recordKnownButton.addEventListener("click", () => { recordFilter = "known"; render(); });
 els.recordReviewButton.addEventListener("click", () => setMode("review"));
 els.exportButton.addEventListener("click", exportRecords);
+els.adminExportButton.addEventListener("click", exportAdminRecords);
 els.settingsButton.addEventListener("click", () => els.settingsDialog.showModal());
 els.userButton.addEventListener("click", () => els.settingsDialog.showModal());
 
