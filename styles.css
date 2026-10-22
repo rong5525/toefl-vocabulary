@@ -34,6 +34,27 @@ body {
 
 button { font: inherit; }
 
+.auth-overlay {
+  position: fixed; z-index: 50; inset: 0; padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  display: grid; place-items: center; overflow-y: auto;
+  background:
+    radial-gradient(circle at 10% 5%, rgba(47,125,117,.14), transparent 24rem),
+    radial-gradient(circle at 90% 95%, rgba(199,91,77,.12), transparent 26rem),
+    var(--paper);
+}
+.auth-card { width: min(100%, 410px); padding: 34px 30px 27px; border: 1px solid rgba(21,39,56,.08); border-radius: 28px; background: var(--card); box-shadow: var(--shadow); }
+.auth-card h1 { margin-top: 5px; font-size: 37px; }
+.auth-copy { margin: 18px 0 24px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.auth-loading { padding: 17px 0; color: var(--muted); text-align: center; font-size: 13px; }
+.auth-card form { display: grid; gap: 15px; }
+.auth-card label { display: grid; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.auth-card input { width: 100%; min-height: 49px; padding: 0 14px; border: 1px solid var(--line); border-radius: 13px; outline: none; background: #fff; color: var(--ink); font-size: 16px; }
+.auth-card input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(47,125,117,.12); }
+.auth-button { min-height: 50px; margin-top: 3px; border: 0; border-radius: 14px; background: var(--ink); color: white; font-weight: 800; }
+.auth-button:disabled { opacity: .58; }
+.auth-error { margin: 0; color: var(--coral); text-align: center; font-size: 12px; }
+.auth-note { margin: 21px 0 0; color: #aaa8a1; text-align: center; font-size: 10px; letter-spacing: .06em; }
+
 .app-shell {
   width: min(100%, 520px);
   min-height: 100dvh;
@@ -43,7 +64,13 @@ button { font: inherit; }
   flex-direction: column;
 }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.top-actions { display: flex; align-items: center; gap: 8px; }
+.account-pill { min-height: 34px; max-width: 125px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,253,248,.72); color: var(--ink); display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; }
+.account-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-pill i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px rgba(47,125,117,.12); }
+.account-pill.syncing i { background: var(--amber); box-shadow: 0 0 0 3px rgba(166,106,22,.12); }
+.account-pill.offline i { background: var(--coral); box-shadow: 0 0 0 3px rgba(199,91,77,.12); }
 .eyebrow { margin: 0 0 3px; color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
 h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 29px; line-height: 1; letter-spacing: -.03em; }
 h1 span { color: var(--coral); font-style: italic; }
@@ -167,6 +194,12 @@ dialog::backdrop { background: rgba(21,39,56,.45); backdrop-filter: blur(4px); }
 .install-box h3 { margin: 0 0 12px; font-size: 16px; }
 .install-box ol { margin: 0; padding-left: 20px; color: #355c58; font-size: 13px; line-height: 1.9; }
 .install-box p { margin: 12px 0 0; color: #55706d; font-size: 11px; line-height: 1.5; }
+.account-box { margin-top: 14px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 15px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-box div { display: grid; gap: 3px; }
+.account-box small { color: var(--muted); font-size: 10px; }
+.account-box strong { font-size: 14px; }
+.account-box > span { color: var(--teal); font-size: 10px; font-weight: 800; }
+.secondary-button { width: 100%; margin-top: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--ink); font-weight: 700; }
 .danger-button { width: 100%; margin-top: 18px; padding: 13px; border: 1px solid var(--coral-soft); border-radius: 14px; background: transparent; color: var(--coral); font-weight: 700; }
 .version { margin: 18px 0 0; color: #aaa8a1; text-align: center; font-size: 10px; }
 .toast { position: fixed; z-index: 10; left: 50%; bottom: calc(25px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px); padding: 10px 15px; border-radius: 12px; background: var(--ink); color: white; font-size: 12px; opacity: 0; pointer-events: none; transition: .25s ease; }
@@ -181,6 +214,8 @@ dialog::backdrop { background: rgba(21,39,56,.45); backdrop-filter: blur(4px); }
 }
 
 @media (max-width: 390px) {
+  .auth-card { padding: 28px 23px 24px; }
+  .account-pill { max-width: 94px; padding-inline: 9px; }
   .record-actions { grid-template-columns: 1fr; }
   .actions { grid-template-columns: 1fr 1fr 1fr 40px; gap: 5px; }
   .decision-button { min-height: 54px; border-radius: 14px; font-size: 11px; }

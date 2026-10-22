@@ -101,18 +101,27 @@ const WORDS = [
   {w:"adjacent",p:"/əˈdʒeɪsənt/",t:"adj.",z:"邻近的；毗连的",d:"next to or very near something",e:"The market served villages adjacent to the river."}
 ];
 
-const STORAGE_KEY = "toefl100-progress-v2";
-const LEGACY_STORAGE_KEY = "toefl100-progress-v1";
+const STORAGE_PREFIX = "toefl100-cloud-cache-v1";
 const STAR_PERCENTAGES = [0, 20, 40, 60, 80, 90];
+const cloudConfig = window.TOEFL_CLOUD_CONFIG;
+const cloudClient = window.supabase && cloudConfig
+  ? window.supabase.createClient(cloudConfig.url, cloudConfig.publishableKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    })
+  : null;
 const els = Object.fromEntries([
   "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText",
   "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","recordTab","emptyState","emptyTitle",
   "emptyCopy","emptyAction","dontKnowButton","familiarButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
   "familiarityMeter","starText","familiarityText","downStamp",
-  "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton"
+  "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton",
+  "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton"
 ].map(id => [id, document.getElementById(id)]));
 
-let state = loadState();
+let state = { progress: {} };
+let currentUser = null;
+let currentProfile = null;
+let cloudQueue = Promise.resolve();
 let mode = "study";
 let reviewQueue = [];
 let reviewNextRound = [];
@@ -122,33 +131,162 @@ let locked = false;
 let history = [];
 let drag = null;
 
-function loadState() {
+function userStorageKey(userId) {
+  return `${STORAGE_PREFIX}:${userId}`;
+}
+
+function loadCachedState(userId) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(userStorageKey(userId)));
     if (saved && saved.progress && typeof saved.progress === "object") return saved;
-  } catch (_) {}
-  try {
-    const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
-    if (legacy?.statuses && typeof legacy.statuses === "object") {
-      const migrated = { progress: {} };
-      Object.entries(legacy.statuses).forEach(([word, status]) => {
-        migrated.progress[word] = {
-          stars: status === "known" ? 5 : 0,
-          percent: status === "known" ? 100 : 0,
-          reviews: 1,
-          lastAction: status === "known" ? "mastered" : "unknown",
-          updatedAt: null
-        };
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-      return migrated;
-    }
   } catch (_) {}
   return { progress: {} };
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (currentUser) localStorage.setItem(userStorageKey(currentUser.id), JSON.stringify(state));
+}
+
+function setCloudStatus(status) {
+  els.userButton.classList.toggle("syncing", status === "syncing");
+  els.userButton.classList.toggle("offline", status === "offline");
+  const labels = { synced: "已同步", syncing: "同步中…", offline: "等待同步" };
+  els.settingsCloudStatus.textContent = labels[status] || labels.synced;
+}
+
+function cloudRowToProgress(row) {
+  return {
+    stars: row.stars,
+    percent: row.percent,
+    reviews: row.review_count,
+    lastAction: row.last_action,
+    updatedAt: row.updated_at
+  };
+}
+
+async function loadCloudState(userId) {
+  const { data, error } = await cloudClient
+    .from("user_word_progress")
+    .select("word_key,stars,percent,review_count,last_action,updated_at")
+    .eq("user_id", userId);
+  if (error) throw error;
+  return {
+    progress: Object.fromEntries((data || []).map(row => [row.word_key, cloudRowToProgress(row)]))
+  };
+}
+
+async function activateSession(session) {
+  currentUser = session.user;
+  currentProfile = { username: session.user.email?.split("@")[0] || "用户", role: "user" };
+  state = loadCachedState(currentUser.id);
+  let status = "synced";
+
+  try {
+    const [{ data: profile, error: profileError }, remoteState] = await Promise.all([
+      cloudClient.from("profiles").select("username,role").eq("user_id", currentUser.id).single(),
+      loadCloudState(currentUser.id)
+    ]);
+    if (profileError) throw profileError;
+    currentProfile = profile;
+    state = remoteState;
+    saveState();
+  } catch (error) {
+    console.warn("Using cached progress", error);
+    status = "offline";
+  }
+
+  els.userName.textContent = currentProfile.username;
+  els.settingsUserName.textContent = currentProfile.username;
+  els.authOverlay.hidden = true;
+  els.authLoading.hidden = true;
+  els.appShell.inert = false;
+  setCloudStatus(status);
+  mode = "study";
+  reviewQueue = [];
+  reviewNextRound = [];
+  history = [];
+  render();
+}
+
+function showLogin(message = "") {
+  currentUser = null;
+  currentProfile = null;
+  state = { progress: {} };
+  els.authOverlay.hidden = false;
+  els.authLoading.hidden = true;
+  els.appShell.inert = true;
+  els.authForm.hidden = false;
+  els.authError.hidden = !message;
+  els.authError.textContent = message;
+  els.loginButton.disabled = false;
+  els.loginButton.textContent = "登录学习";
+}
+
+async function initializeApp() {
+  if (!cloudClient) {
+    showLogin("云端服务加载失败，请检查网络后刷新页面。");
+    return;
+  }
+  const { data, error } = await cloudClient.auth.getSession();
+  if (error || !data.session) showLogin();
+  else await activateSession(data.session);
+}
+
+function queueCloud(task) {
+  if (!currentUser) return;
+  setCloudStatus("syncing");
+  cloudQueue = cloudQueue
+    .then(task)
+    .then(() => setCloudStatus("synced"))
+    .catch(error => {
+      console.warn("Cloud sync pending", error);
+      setCloudStatus("offline");
+    });
+}
+
+function progressRow(wordKey, entry, userId = currentUser.id) {
+  return {
+    user_id: userId,
+    word_key: wordKey,
+    stars: entry.stars,
+    percent: entry.percent,
+    review_count: entry.reviews,
+    last_action: entry.lastAction,
+    updated_at: entry.updatedAt
+  };
+}
+
+function syncDecision(wordKey, previous, next) {
+  const userId = currentUser.id;
+  const row = progressRow(wordKey, next, userId);
+  queueCloud(async () => {
+    const { error: progressError } = await cloudClient
+      .from("user_word_progress")
+      .upsert(row, { onConflict: "user_id,word_key" });
+    if (progressError) throw progressError;
+    const { error: eventError } = await cloudClient.from("review_events").insert({
+      user_id: userId,
+      word_key: wordKey,
+      action: next.lastAction,
+      previous_stars: previous?.stars ?? 0,
+      new_stars: next.stars,
+      previous_percent: previous?.percent ?? 0,
+      new_percent: next.percent
+    });
+    if (eventError) throw eventError;
+  });
+}
+
+function syncEntry(wordKey, entry) {
+  const userId = currentUser.id;
+  const row = entry ? progressRow(wordKey, entry, userId) : null;
+  queueCloud(async () => {
+    const query = entry
+      ? cloudClient.from("user_word_progress").upsert(row, { onConflict: "user_id,word_key" })
+      : cloudClient.from("user_word_progress").delete().eq("user_id", userId).eq("word_key", wordKey);
+    const { error } = await query;
+    if (error) throw error;
+  });
 }
 
 function counts() {
@@ -356,12 +494,15 @@ function decide(action) {
   els.wordCard.classList.add(exitClass);
 
   setTimeout(() => {
-    state.progress[word.w] = updatedProgress(word, action);
+    const previous = progressFor(word);
+    const next = updatedProgress(word, action);
+    state.progress[word.w] = next;
     if (mode === "review") {
       reviewQueue.shift();
       if (action !== "mastered") reviewNextRound.push(word);
     }
     saveState();
+    syncDecision(word.w, previous, next);
     els.wordCard.classList.remove("exit-left", "exit-right", "exit-down");
     els.wordCard.classList.add("enter");
     render();
@@ -372,12 +513,19 @@ function decide(action) {
 
 function undo() {
   if (!history.length || locked) return;
+  const currentProgress = JSON.parse(JSON.stringify(state.progress));
   const previous = history.pop();
   state.progress = previous.progress;
   mode = previous.mode;
   reviewQueue = previous.reviewQueue;
   reviewNextRound = previous.reviewNextRound;
   saveState();
+  const changedWords = new Set([...Object.keys(currentProgress), ...Object.keys(state.progress)]);
+  changedWords.forEach(wordKey => {
+    if (JSON.stringify(currentProgress[wordKey]) !== JSON.stringify(state.progress[wordKey])) {
+      syncEntry(wordKey, state.progress[wordKey] ?? null);
+    }
+  });
   render();
   showToast("已撤销上一次分类");
 }
@@ -470,6 +618,14 @@ function resetDrag() {
   drag = null;
 }
 
+function clearCloudProgress() {
+  const userId = currentUser.id;
+  queueCloud(async () => {
+    const { error } = await cloudClient.from("user_word_progress").delete().eq("user_id", userId);
+    if (error) throw error;
+  });
+}
+
 els.wordCard.addEventListener("pointerdown", event => {
   if (locked || event.target.closest("button")) return;
   drag = { x: event.clientX, y: event.clientY, dx: 0, dy: 0, moved: false };
@@ -530,6 +686,47 @@ els.recordKnownButton.addEventListener("click", () => { recordFilter = "known"; 
 els.recordReviewButton.addEventListener("click", () => setMode("review"));
 els.exportButton.addEventListener("click", exportRecords);
 els.settingsButton.addEventListener("click", () => els.settingsDialog.showModal());
+els.userButton.addEventListener("click", () => els.settingsDialog.showModal());
+
+els.authForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!cloudClient) {
+    showLogin("云端服务暂时不可用，请检查网络后刷新页面。");
+    return;
+  }
+  const username = els.usernameInput.value.trim().toLowerCase();
+  const pin = els.pinInput.value.trim();
+  if (!/^[a-z][a-z0-9_]{2,31}$/.test(username) || !/^\d{4}$/.test(pin)) {
+    els.authError.textContent = "请输入正确的用户名和四位 PIN。";
+    els.authError.hidden = false;
+    return;
+  }
+
+  els.loginButton.disabled = true;
+  els.loginButton.textContent = "正在登录…";
+  els.authError.hidden = true;
+  const email = `${username}@users.toefl.yuhong.li`;
+  const password = `T0efl-${username}-${pin}!`;
+  const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
+  if (error || !data.session) {
+    showLogin("用户名或 PIN 不正确，请重新输入。");
+    els.pinInput.value = "";
+    els.pinInput.focus();
+    return;
+  }
+  els.pinInput.value = "";
+  await activateSession(data.session);
+});
+
+els.logoutButton.addEventListener("click", async () => {
+  els.settingsDialog.close();
+  await cloudQueue.catch(() => {});
+  await cloudClient.auth.signOut();
+  showLogin();
+  els.usernameInput.value = "";
+  els.pinInput.value = "";
+  els.usernameInput.focus();
+});
 
 els.emptyAction.addEventListener("click", () => {
   const stats = counts();
@@ -538,6 +735,7 @@ els.emptyAction.addEventListener("click", () => {
     else {
       state = { progress: {} };
       saveState();
+      clearCloudProgress();
       render();
     }
   } else if (reviewNextRound.length) {
@@ -556,6 +754,7 @@ els.resetButton.addEventListener("click", () => {
   reviewNextRound = [];
   history = [];
   saveState();
+  clearCloudProgress();
   els.settingsDialog.close();
   render();
   showToast("学习进度已清空");
@@ -565,4 +764,4 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 
-render();
+initializeApp();
