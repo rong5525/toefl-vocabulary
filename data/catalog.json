@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "lists": [
+    {
+      "id": "cet4",
+      "title": "四级",
+      "subtitle": "CET-4",
+      "color": "teal",
+      "count": 3846
+    },
+    {
+      "id": "cet6",
+      "title": "六级",
+      "subtitle": "CET-6",
+      "color": "blue",
+      "count": 5406
+    },
+    {
+      "id": "toefl",
+      "title": "托福",
+      "subtitle": "TOEFL",
+      "color": "coral",
+      "count": 6978
+    },
+    {
+      "id": "ielts",
+      "title": "雅思",
+      "subtitle": "IELTS",
+      "color": "amber",
+      "count": 5038
+    },
+    {
+      "id": "gre",
+      "title": "GRE",
+      "subtitle": "GRADUATE",
+      "color": "plum",
+      "count": 7504
+    }
+  ]
+}

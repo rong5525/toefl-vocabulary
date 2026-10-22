@@ -1,5 +1,5 @@
-const CACHE = "toefl-100-v7";
-const ASSETS = ["./", "./index.html", "./styles.css", "./config.js", "./app.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const CACHE = "vocabulary-cards-v9";
+const ASSETS = ["./", "./index.html", "./styles.css", "./config.js", "./app.js", "./manifest.webmanifest", "./data/catalog.json", "./THIRD_PARTY_NOTICES.txt", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
@@ -18,6 +18,9 @@ self.addEventListener("fetch", event => {
       const copy = response.clone();
       caches.open(CACHE).then(cache => cache.put(event.request, copy));
       return response;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(async () => {
+      if (event.request.mode === "navigate") return caches.match("./index.html");
+      return new Response("Offline and not cached", { status: 503, statusText: "Offline" });
+    }))
   );
 });

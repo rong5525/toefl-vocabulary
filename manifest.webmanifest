@@ -1,7 +1,7 @@
 {
-  "name": "TOEFL 100 单词卡",
-  "short_name": "TOEFL 100",
-  "description": "左右与下滑学习 100 个托福词汇，记录 0–100% 熟悉度。",
+  "name": "英语词汇卡",
+  "short_name": "词汇卡",
+  "description": "四级、六级、托福、雅思和 GRE 多词库学习卡，支持顺序与乱序学习。",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

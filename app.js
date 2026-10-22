@@ -1,4 +1,4 @@
-const WORDS = [
+const FEATURED_TOEFL_100 = [
   {w:"abundant",p:"/əˈbʌndənt/",t:"adj.",z:"丰富的；充足的",d:"existing in large quantities",e:"The region has abundant natural resources."},
   {w:"accelerate",p:"/əkˈseləreɪt/",t:"v.",z:"加速；促进",d:"to make something happen faster",e:"Warmer temperatures can accelerate the melting of glaciers."},
   {w:"adapt",p:"/əˈdæpt/",t:"v.",z:"适应；改编",d:"to change in order to suit new conditions",e:"Many species adapt to seasonal changes in food supply."},
@@ -101,6 +101,13 @@ const WORDS = [
   {w:"adjacent",p:"/əˈdʒeɪsənt/",t:"adj.",z:"邻近的；毗连的",d:"next to or very near something",e:"The market served villages adjacent to the river."}
 ];
 
+const LIST_CATALOG = [
+  { id: "cet4", title: "四级", subtitle: "CET-4", count: 3846, color: "teal" },
+  { id: "cet6", title: "六级", subtitle: "CET-6", count: 5406, color: "blue" },
+  { id: "toefl", title: "托福", subtitle: "TOEFL", count: 6978, color: "coral" },
+  { id: "ielts", title: "雅思", subtitle: "IELTS", count: 5038, color: "amber" },
+  { id: "gre", title: "GRE", subtitle: "GRADUATE", count: 7504, color: "plum" }
+];
 const STORAGE_PREFIX = "toefl100-cloud-cache-v1";
 const STAR_PERCENTAGES = [0, 20, 40, 60, 80, 90];
 const cloudConfig = window.TOEFL_CLOUD_CONFIG;
@@ -115,9 +122,15 @@ const els = Object.fromEntries([
   "emptyCopy","emptyAction","dontKnowButton","familiarButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
   "familiarityMeter","starText","familiarityText","downStamp",
   "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton",
-  "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton","adminBox","adminUserSelect","adminExportButton"
+  "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton","adminBox","adminUserSelect","adminListSelect","adminExportButton",
+  "libraryOverlay","libraryUserName","libraryGrid","libraryLoading","libraryLogoutButton","libraryButton","switchListButton","orderButton","currentOrderName","appListTitle","appListSubtitle","progressLabel","exportNote","settingsListName"
 ].map(id => [id, document.getElementById(id)]));
 
+let WORDS = [];
+let orderedWords = [];
+let currentList = null;
+let orderMode = "sequential";
+const wordListCache = new Map();
 let state = { progress: {} };
 let currentUser = null;
 let currentProfile = null;
@@ -145,6 +158,113 @@ function loadCachedState(userId) {
 
 function saveState() {
   if (currentUser) localStorage.setItem(userStorageKey(currentUser.id), JSON.stringify(state));
+}
+
+function shuffled(items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+}
+
+function rebuildOrder() {
+  orderedWords = orderMode === "random" ? shuffled(WORDS) : [...WORDS];
+}
+
+function refreshOrderControls() {
+  const random = orderMode === "random";
+  document.querySelectorAll("[data-order]").forEach(button => {
+    button.classList.toggle("active", button.dataset.order === orderMode);
+    button.setAttribute("aria-pressed", String(button.dataset.order === orderMode));
+  });
+  els.orderButton.textContent = random ? "乱序" : "顺序";
+  els.currentOrderName.textContent = random ? "乱序学习" : "顺序学习";
+  els.progressLabel.textContent = random ? "乱序进度" : "顺序进度";
+}
+
+function setOrderMode(next, notify = false) {
+  if (!['sequential', 'random'].includes(next)) return;
+  orderMode = next;
+  if (currentUser) localStorage.setItem(`${STORAGE_PREFIX}:order:${currentUser.id}`, next);
+  rebuildOrder();
+  reviewQueue = [];
+  reviewNextRound = [];
+  history = [];
+  refreshOrderControls();
+  if (currentList) render();
+  if (notify) showToast(next === "random" ? "已切换为乱序学习" : "已切换为顺序学习");
+}
+
+async function getWordList(listId) {
+  if (wordListCache.has(listId)) return wordListCache.get(listId);
+  try {
+    const response = await fetch(`./data/${listId}.json`);
+    if (!response.ok) throw new Error(`Word list request failed: ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.words) || !payload.words.length) throw new Error("Word list is empty");
+    wordListCache.set(listId, payload);
+    return payload;
+  } catch (error) {
+    if (listId === "toefl" && FEATURED_TOEFL_100.length) {
+      const fallback = { id: "toefl", title: "托福", subtitle: "TOEFL", words: FEATURED_TOEFL_100 };
+      wordListCache.set(listId, fallback);
+      return fallback;
+    }
+    throw error;
+  }
+}
+
+function updateListChrome() {
+  if (!currentList) return;
+  const orderName = orderMode === "random" ? "乱序" : "顺序";
+  els.appListTitle.textContent = currentList.title;
+  els.appListSubtitle.textContent = currentList.subtitle;
+  els.settingsListName.textContent = `${currentList.title} · ${WORDS.length.toLocaleString("zh-CN")} 词`;
+  els.exportNote.textContent = `导出${currentList.title}词库全部 ${WORDS.length.toLocaleString("zh-CN")} 个单词，包含星级、熟悉度、复习次数和最后学习时间。`;
+  els.libraryButton.textContent = currentList.title;
+  els.orderButton.textContent = orderName;
+  document.title = `${currentList.title}词汇卡`;
+}
+
+function showLibraryChooser() {
+  els.settingsDialog.open && els.settingsDialog.close();
+  els.libraryUserName.textContent = currentProfile?.username || "用户";
+  els.libraryLoading.hidden = true;
+  els.libraryLoading.textContent = "正在载入词库…";
+  els.libraryOverlay.hidden = false;
+  els.appShell.inert = true;
+  refreshOrderControls();
+}
+
+async function selectWordList(listId) {
+  const info = LIST_CATALOG.find(list => list.id === listId);
+  if (!info) return;
+  els.libraryLoading.hidden = false;
+  els.libraryLoading.textContent = `正在载入${info.title}词库…`;
+  els.libraryGrid.classList.add("loading");
+  try {
+    const payload = await getWordList(listId);
+    currentList = { ...info, ...payload, words: undefined };
+    WORDS = payload.words;
+    rebuildOrder();
+    mode = "study";
+    reviewQueue = [];
+    reviewNextRound = [];
+    history = [];
+    recordFilter = "learning";
+    updateListChrome();
+    refreshOrderControls();
+    els.libraryOverlay.hidden = true;
+    els.appShell.inert = false;
+    render();
+  } catch (error) {
+    console.warn("Word list loading failed", error);
+    els.libraryLoading.textContent = "词库载入失败，请检查网络后重试。";
+  } finally {
+    els.libraryGrid.classList.remove("loading");
+  }
 }
 
 function setCloudStatus(status) {
@@ -197,24 +317,32 @@ async function activateSession(session) {
 
   els.userName.textContent = currentProfile.username;
   els.settingsUserName.textContent = currentProfile.username;
+  els.libraryUserName.textContent = currentProfile.username;
   els.adminBox.hidden = currentProfile.role !== "admin";
   if (currentProfile.role === "admin") loadAdminUsers();
   els.authOverlay.hidden = true;
   els.authLoading.hidden = true;
-  els.appShell.inert = false;
+  orderMode = localStorage.getItem(`${STORAGE_PREFIX}:order:${currentUser.id}`) || "sequential";
+  currentList = null;
+  WORDS = [];
+  orderedWords = [];
   setCloudStatus(status);
   mode = "study";
   reviewQueue = [];
   reviewNextRound = [];
   history = [];
-  render();
+  showLibraryChooser();
 }
 
 function showLogin(message = "") {
   currentUser = null;
   currentProfile = null;
+  currentList = null;
+  WORDS = [];
+  orderedWords = [];
   state = { progress: {} };
   els.authOverlay.hidden = false;
+  els.libraryOverlay.hidden = true;
   els.authLoading.hidden = true;
   els.appShell.inert = true;
   els.authForm.hidden = false;
@@ -292,18 +420,18 @@ function syncEntry(wordKey, entry) {
 }
 
 function counts() {
-  const values = Object.values(state.progress);
+  const values = WORDS.map(word => state.progress[word.w]).filter(Boolean);
   const known = values.filter(v => v.percent === 100).length;
   const learning = values.filter(v => v.percent < 100).length;
   return { known, learning, remaining: WORDS.length - known - learning };
 }
 
 function studyWords() {
-  return WORDS.filter(word => !state.progress[word.w]);
+  return orderedWords.filter(word => !state.progress[word.w]);
 }
 
 function learningWords() {
-  return WORDS.filter(word => state.progress[word.w] && state.progress[word.w].percent < 100);
+  return orderedWords.filter(word => state.progress[word.w] && state.progress[word.w].percent < 100);
 }
 
 function currentWord() {
@@ -339,13 +467,14 @@ function startReviewRound() {
 }
 
 function render() {
+  if (!currentList || !WORDS.length) return;
   const stats = counts();
   const completed = stats.known + stats.learning;
   els.knownCount.textContent = stats.known;
   els.learningCount.textContent = stats.learning;
   els.remainingCount.textContent = stats.remaining;
   els.progressText.textContent = `${completed} / ${WORDS.length}`;
-  els.progressBar.style.width = `${completed}%`;
+  els.progressBar.style.width = `${WORDS.length ? completed / WORDS.length * 100 : 0}%`;
   els.reviewBadge.textContent = stats.learning;
   els.studyTab.classList.toggle("active", mode === "study");
   els.reviewTab.classList.toggle("active", mode === "review");
@@ -382,14 +511,16 @@ function render() {
   els.meaningText.textContent = word.z;
   els.definitionText.textContent = word.d;
   els.exampleText.textContent = word.e;
+  els.definitionText.hidden = !word.d;
+  els.exampleText.hidden = !word.e;
   const entry = progressFor(word);
   els.starText.textContent = starString(entry?.stars ?? 0);
   els.familiarityText.textContent = progressLabel(entry);
   els.familiarityMeter.setAttribute("aria-label", progressLabel(entry));
   const nextStars = Math.min((entry?.stars ?? 0) + 1, 5);
   els.downStamp.textContent = nextStars === 5 && entry?.stars === 5 ? "保持 5 ★" : `+ ${nextStars} ★`;
-  const originalIndex = WORDS.indexOf(word) + 1;
-  els.cardNumber.textContent = String(originalIndex).padStart(3, "0");
+  const orderIndex = orderedWords.indexOf(word) + 1;
+  els.cardNumber.textContent = String(orderIndex).padStart(String(WORDS.length).length, "0");
   els.wordCard.setAttribute("aria-label", `${word.w}，点击查看释义`);
 }
 
@@ -448,9 +579,9 @@ function showEmpty(stats) {
   els.knowButton.disabled = true;
 
   if (mode === "study") {
-    els.emptyTitle.textContent = "100 词初筛完成";
-    els.emptyCopy.textContent = stats.learning ? `已掌握 ${stats.known} 个，还有 ${stats.learning} 个需要继续提高熟悉度。` : "太棒了，100 个单词你已经全部掌握。";
-    els.emptyAction.textContent = stats.learning ? "继续分级复习" : "重新开始";
+    els.emptyTitle.textContent = `${currentList.title}初筛完成`;
+    els.emptyCopy.textContent = stats.learning ? `已掌握 ${stats.known} 个，还有 ${stats.learning} 个需要继续提高熟悉度。` : `太棒了，${currentList.title}词库已经全部掌握。`;
+    els.emptyAction.textContent = stats.learning ? "继续分级复习" : "查看学习记录";
   } else {
     els.emptyTitle.textContent = "本轮复习完成";
     els.emptyCopy.textContent = reviewNextRound.length ? `这一轮还有 ${reviewNextRound.length} 个词需要继续巩固。` : "这一轮的单词已经全部掌握。";
@@ -554,13 +685,14 @@ function csvCell(value) {
 }
 
 function buildExportFile() {
-  const header = ["序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
+  const header = ["词库", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
   const rows = WORDS.map((word, index) => {
     const entry = progressFor(word);
     const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
     const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
     const updatedAt = entry?.updatedAt ? new Date(entry.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "";
     return [
+      currentList.title,
       index + 1,
       word.w,
       status,
@@ -578,7 +710,7 @@ function buildExportFile() {
   });
   const csv = "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
   const day = new Date().toLocaleDateString("en-CA");
-  return new File([csv], `TOEFL-100-学习记录-${day}.csv`, { type: "text/csv;charset=utf-8" });
+  return new File([csv], `${currentList.subtitle}-${currentList.title}学习记录-${day}.csv`, { type: "text/csv;charset=utf-8" });
 }
 
 function downloadFile(file) {
@@ -599,8 +731,8 @@ async function exportRecords() {
     try {
       await navigator.share({
         files: [file],
-        title: "TOEFL 100 学习记录",
-        text: "TOEFL 100 单词分类记录，可直接使用 Excel 打开。"
+        title: `${currentList.title}词库学习记录`,
+        text: `${currentList.title}词库分类记录，可直接使用 Excel 打开。`
       });
       showToast("记录已导出");
       return;
@@ -632,34 +764,38 @@ async function exportAdminRecords() {
     if (profilesError) throw profilesError;
     if (progressError) throw progressError;
 
-    const selected = els.adminUserSelect.value;
-    const users = selected === "all" ? profiles : profiles.filter(profile => profile.user_id === selected);
+    const selectedUser = els.adminUserSelect.value;
+    const selectedList = els.adminListSelect.value;
+    const users = selectedUser === "all" ? profiles : profiles.filter(profile => profile.user_id === selectedUser);
+    const lists = selectedList === "all" ? LIST_CATALOG : LIST_CATALOG.filter(list => list.id === selectedList);
+    const payloads = await Promise.all(lists.map(async list => ({ list, payload: await getWordList(list.id) })));
     const progressMap = new Map(progress.map(entry => [`${entry.user_id}:${entry.word_key}`, entry]));
     const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
-    const header = ["用户", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
-    const rows = users.flatMap(profile => WORDS.map((word, index) => {
-      const entry = progressMap.get(`${profile.user_id}:${word.w}`);
-      const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
-      return [
-        profile.username,
-        index + 1,
-        word.w,
-        status,
-        entry?.stars ?? "",
-        entry ? `${entry.percent}%` : "",
-        entry?.review_count ?? 0,
-        entry ? actionNames[entry.last_action] : "",
-        entry?.updated_at ? new Date(entry.updated_at).toLocaleString("zh-CN", { hour12: false }) : "",
-        word.p,
-        word.t,
-        word.z,
-        word.d,
-        word.e
-      ];
-    }));
+    const header = ["用户", "词库", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
+    const rows = users.flatMap(profile => payloads.flatMap(({ list, payload }) => payload.words.map((word, index) => {
+        const entry = progressMap.get(`${profile.user_id}:${word.w}`);
+        const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
+        return [
+          profile.username,
+          list.title,
+          index + 1,
+          word.w,
+          status,
+          entry?.stars ?? "",
+          entry ? `${entry.percent}%` : "",
+          entry?.review_count ?? 0,
+          entry ? actionNames[entry.last_action] : "",
+          entry?.updated_at ? new Date(entry.updated_at).toLocaleString("zh-CN", { hour12: false }) : "",
+          word.p,
+          word.t,
+          word.z,
+          word.d,
+          word.e
+        ];
+      })));
     const csv = "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
     const day = new Date().toLocaleDateString("en-CA");
-    downloadFile(new File([csv], `TOEFL-100-管理员记录-${day}.csv`, { type: "text/csv;charset=utf-8" }));
+    downloadFile(new File([csv], `英语词库-管理员记录-${day}.csv`, { type: "text/csv;charset=utf-8" }));
   } catch (error) {
     console.warn("Admin export failed", error);
     showToast("导出失败，请检查网络后重试");
@@ -748,6 +884,16 @@ els.exportButton.addEventListener("click", exportRecords);
 els.adminExportButton.addEventListener("click", exportAdminRecords);
 els.settingsButton.addEventListener("click", () => els.settingsDialog.showModal());
 els.userButton.addEventListener("click", () => els.settingsDialog.showModal());
+els.libraryButton.addEventListener("click", showLibraryChooser);
+els.switchListButton.addEventListener("click", showLibraryChooser);
+els.orderButton.addEventListener("click", () => setOrderMode(orderMode === "random" ? "sequential" : "random", true));
+els.libraryGrid.addEventListener("click", event => {
+  const button = event.target.closest("[data-list]");
+  if (button) selectWordList(button.dataset.list);
+});
+document.querySelectorAll("[data-order]").forEach(button => {
+  button.addEventListener("click", () => setOrderMode(button.dataset.order));
+});
 
 els.authForm.addEventListener("submit", async event => {
   event.preventDefault();
@@ -779,26 +925,24 @@ els.authForm.addEventListener("submit", async event => {
   await activateSession(data.session);
 });
 
-els.logoutButton.addEventListener("click", async () => {
-  els.settingsDialog.close();
+async function logout() {
+  if (els.settingsDialog.open) els.settingsDialog.close();
   await cloudQueue.catch(() => {});
   await cloudClient.auth.signOut();
   showLogin();
   els.usernameInput.value = "";
   els.pinInput.value = "";
   els.usernameInput.focus();
-});
+}
+
+els.logoutButton.addEventListener("click", logout);
+els.libraryLogoutButton.addEventListener("click", logout);
 
 els.emptyAction.addEventListener("click", () => {
   const stats = counts();
   if (mode === "study") {
     if (stats.learning) setMode("review");
-    else {
-      state = { progress: {} };
-      saveState();
-      clearCloudProgress();
-      render();
-    }
+    else setMode("record");
   } else if (reviewNextRound.length) {
     reviewQueue = [...reviewNextRound];
     reviewNextRound = [];
@@ -808,7 +952,7 @@ els.emptyAction.addEventListener("click", () => {
 });
 
 els.resetButton.addEventListener("click", () => {
-  if (!window.confirm("确定要清空全部学习进度吗？")) return;
+  if (!window.confirm("确定要清空当前账号在所有词库中的学习进度吗？")) return;
   state = { progress: {} };
   mode = "study";
   reviewQueue = [];
