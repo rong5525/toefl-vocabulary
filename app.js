@@ -117,19 +117,20 @@ const cloudClient = window.supabase && cloudConfig
     })
   : null;
 const els = Object.fromEntries([
-  "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText",
+  "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText","quizPanel","quizOptions","quizFeedback",
   "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","recordTab","emptyState","emptyTitle",
   "emptyCopy","emptyAction","dontKnowButton","familiarButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
   "familiarityMeter","starText","familiarityText","downStamp",
   "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton",
   "appShell","authOverlay","authLoading","authForm","usernameInput","pinInput","loginButton","authError","userButton","userName","cloudStatus","settingsUserName","settingsCloudStatus","logoutButton","adminBox","adminUserSelect","adminListSelect","adminExportButton",
-  "libraryOverlay","libraryUserName","libraryGrid","libraryLoading","libraryLogoutButton","libraryButton","switchListButton","orderButton","currentOrderName","appListTitle","appListSubtitle","progressLabel","exportNote","settingsListName"
+  "libraryOverlay","libraryUserName","libraryGrid","libraryLoading","libraryLogoutButton","libraryButton","switchListButton","orderButton","currentOrderName","learningModeButton","currentLearningModeName","appListTitle","appListSubtitle","progressLabel","exportNote","settingsListName"
 ].map(id => [id, document.getElementById(id)]));
 
 let WORDS = [];
 let orderedWords = [];
 let currentList = null;
 let orderMode = "sequential";
+let learningMode = "card";
 const wordListCache = new Map();
 let state = { progress: {} };
 let currentUser = null;
@@ -143,6 +144,10 @@ let revealed = false;
 let locked = false;
 let history = [];
 let drag = null;
+let quizWordKey = null;
+let quizOptions = [];
+let quizLocked = false;
+let quizAnswerTimer = null;
 
 function userStorageKey(userId) {
   return `${STORAGE_PREFIX}:${userId}`;
@@ -195,6 +200,24 @@ function setOrderMode(next, notify = false) {
   refreshOrderControls();
   if (currentList) render();
   if (notify) showToast(next === "random" ? "已切换为乱序学习" : "已切换为顺序学习");
+}
+
+function refreshLearningModeControls() {
+  const quiz = learningMode === "quiz";
+  els.learningModeButton.textContent = quiz ? "三选一" : "卡片";
+  els.currentLearningModeName.textContent = quiz ? "三选一释义" : "卡片分类";
+  els.learningModeButton.setAttribute("aria-label", quiz ? "当前为三选一模式，点击切换到卡片模式" : "当前为卡片模式，点击切换到三选一模式");
+}
+
+function setLearningMode(next, notify = false) {
+  if (!['card', 'quiz'].includes(next) || locked || quizLocked) return;
+  learningMode = next;
+  revealed = false;
+  resetDrag();
+  if (currentUser) localStorage.setItem(`${STORAGE_PREFIX}:learning-mode:${currentUser.id}`, next);
+  refreshLearningModeControls();
+  if (currentList) render();
+  if (notify) showToast(next === "quiz" ? "已切换为三选一释义" : "已切换为卡片分类");
 }
 
 async function getWordList(listId) {
@@ -253,6 +276,8 @@ async function selectWordList(listId) {
     reviewQueue = [];
     reviewNextRound = [];
     history = [];
+    quizWordKey = null;
+    quizOptions = [];
     recordFilter = "learning";
     updateListChrome();
     refreshOrderControls();
@@ -323,6 +348,8 @@ async function activateSession(session) {
   els.authOverlay.hidden = true;
   els.authLoading.hidden = true;
   orderMode = localStorage.getItem(`${STORAGE_PREFIX}:order:${currentUser.id}`) || "sequential";
+  learningMode = localStorage.getItem(`${STORAGE_PREFIX}:learning-mode:${currentUser.id}`) || "card";
+  if (!['card', 'quiz'].includes(learningMode)) learningMode = "card";
   currentList = null;
   WORDS = [];
   orderedWords = [];
@@ -331,6 +358,9 @@ async function activateSession(session) {
   reviewQueue = [];
   reviewNextRound = [];
   history = [];
+  quizWordKey = null;
+  quizOptions = [];
+  refreshLearningModeControls();
   showLibraryChooser();
 }
 
@@ -488,7 +518,7 @@ function render() {
 
   els.recordPanel.hidden = true;
   els.cardStage.hidden = false;
-  els.actions.hidden = false;
+  els.actions.hidden = learningMode === "quiz";
 
   const word = currentWord();
   if (!word) {
@@ -498,13 +528,15 @@ function render() {
 
   els.emptyState.hidden = true;
   els.wordCard.hidden = false;
-  els.gestureHint.hidden = false;
+  els.wordCard.classList.toggle("quiz-mode", learningMode === "quiz");
+  els.gestureHint.hidden = learningMode === "quiz";
   els.dontKnowButton.disabled = false;
   els.familiarButton.disabled = false;
   els.knowButton.disabled = false;
   revealed = false;
   els.cardAnswer.hidden = true;
-  els.tapHint.hidden = false;
+  els.tapHint.hidden = learningMode === "quiz";
+  els.quizPanel.hidden = learningMode !== "quiz";
   els.partOfSpeech.textContent = word.t;
   els.wordText.textContent = word.w;
   els.phoneticText.textContent = word.p;
@@ -521,7 +553,81 @@ function render() {
   els.downStamp.textContent = nextStars === 5 && entry?.stars === 5 ? "保持 5 ★" : `+ ${nextStars} ★`;
   const orderIndex = orderedWords.indexOf(word) + 1;
   els.cardNumber.textContent = String(orderIndex).padStart(String(WORDS.length).length, "0");
-  els.wordCard.setAttribute("aria-label", `${word.w}，点击查看释义`);
+  if (learningMode === "quiz") {
+    renderQuiz(word);
+    els.wordCard.setAttribute("aria-label", `${word.w}，请选择正确的中文释义`);
+  } else {
+    els.wordCard.setAttribute("aria-label", `${word.w}，点击查看释义`);
+  }
+}
+
+function compactMeaning(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > 88 ? `${text.slice(0, 87)}…` : text;
+}
+
+function buildQuizOptions(word) {
+  const correctText = compactMeaning(word.z);
+  const seen = new Set([correctText]);
+  const distractors = [];
+  const addCandidates = candidates => {
+    for (const candidate of shuffled(candidates)) {
+      const text = compactMeaning(candidate.z);
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      distractors.push({ text, correct: false });
+      if (distractors.length === 2) break;
+    }
+  };
+  addCandidates(WORDS.filter(candidate => candidate.w !== word.w && candidate.t === word.t));
+  if (distractors.length < 2) addCandidates(WORDS.filter(candidate => candidate.w !== word.w));
+  return shuffled([{ text: correctText, correct: true }, ...distractors]);
+}
+
+function renderQuiz(word) {
+  if (quizWordKey !== word.w || quizOptions.length !== 3) {
+    quizWordKey = word.w;
+    quizOptions = buildQuizOptions(word);
+  }
+  quizLocked = false;
+  els.quizFeedback.textContent = "";
+  els.quizFeedback.className = "quiz-feedback";
+  els.quizOptions.replaceChildren();
+  quizOptions.forEach((option, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "quiz-option";
+    button.dataset.index = String(index);
+    button.dataset.label = String.fromCharCode(65 + index);
+    button.textContent = option.text;
+    button.setAttribute("aria-label", `选项 ${String.fromCharCode(65 + index)}：${option.text}`);
+    els.quizOptions.append(button);
+  });
+}
+
+function answerQuiz(index) {
+  if (learningMode !== "quiz" || quizLocked || locked) return;
+  const selected = quizOptions[index];
+  if (!selected) return;
+  quizLocked = true;
+  const buttons = [...els.quizOptions.querySelectorAll(".quiz-option")];
+  buttons.forEach((button, optionIndex) => {
+    button.disabled = true;
+    if (quizOptions[optionIndex].correct) button.classList.add("correct");
+  });
+  if (selected.correct) {
+    els.quizFeedback.textContent = "回答正确 · 记为完全掌握 100%";
+    els.quizFeedback.classList.add("correct");
+  } else {
+    buttons[index].classList.add("wrong");
+    els.quizFeedback.textContent = "回答错误 · 记为完全不会 0%";
+    els.quizFeedback.classList.add("wrong");
+  }
+  clearTimeout(quizAnswerTimer);
+  quizAnswerTimer = setTimeout(() => {
+    quizLocked = false;
+    decide(selected.correct ? "mastered" : "unknown");
+  }, 720);
 }
 
 function renderRecord(stats) {
@@ -572,8 +678,10 @@ function renderRecord(stats) {
 
 function showEmpty(stats) {
   els.wordCard.hidden = true;
+  els.wordCard.classList.remove("quiz-mode");
   els.emptyState.hidden = false;
   els.gestureHint.hidden = true;
+  els.actions.hidden = true;
   els.dontKnowButton.disabled = true;
   els.familiarButton.disabled = true;
   els.knowButton.disabled = true;
@@ -590,7 +698,7 @@ function showEmpty(stats) {
 }
 
 function revealCard() {
-  if (!currentWord() || revealed) return;
+  if (learningMode !== "card" || !currentWord() || revealed) return;
   revealed = true;
   els.cardAnswer.hidden = false;
   els.tapHint.hidden = true;
@@ -636,6 +744,8 @@ function decide(action) {
     }
     saveState();
     syncDecision(word.w, previous, next);
+    quizWordKey = null;
+    quizOptions = [];
     els.wordCard.classList.remove("exit-left", "exit-right", "exit-down");
     els.wordCard.classList.add("enter");
     render();
@@ -689,7 +799,7 @@ function buildExportFile() {
   const rows = WORDS.map((word, index) => {
     const entry = progressFor(word);
     const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
-    const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
+    const actionNames = { unknown: "完全不会 / 答错", familiar: "熟悉度 +1", mastered: "完全掌握 / 答对" };
     const updatedAt = entry?.updatedAt ? new Date(entry.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "";
     return [
       currentList.title,
@@ -770,7 +880,7 @@ async function exportAdminRecords() {
     const lists = selectedList === "all" ? LIST_CATALOG : LIST_CATALOG.filter(list => list.id === selectedList);
     const payloads = await Promise.all(lists.map(async list => ({ list, payload: await getWordList(list.id) })));
     const progressMap = new Map(progress.map(entry => [`${entry.user_id}:${entry.word_key}`, entry]));
-    const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
+    const actionNames = { unknown: "完全不会 / 答错", familiar: "熟悉度 +1", mastered: "完全掌握 / 答对" };
     const header = ["用户", "词库", "序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
     const rows = users.flatMap(profile => payloads.flatMap(({ list, payload }) => payload.words.map((word, index) => {
         const entry = progressMap.get(`${profile.user_id}:${word.w}`);
@@ -823,7 +933,7 @@ function clearCloudProgress() {
 }
 
 els.wordCard.addEventListener("pointerdown", event => {
-  if (locked || event.target.closest("button")) return;
+  if (learningMode === "quiz" || locked || event.target.closest("button")) return;
   drag = { x: event.clientX, y: event.clientY, dx: 0, dy: 0, moved: false };
   els.wordCard.setPointerCapture(event.pointerId);
   els.wordCard.classList.add("dragging");
@@ -863,6 +973,13 @@ els.wordCard.addEventListener("pointerup", () => {
 
 els.wordCard.addEventListener("pointercancel", resetDrag);
 els.wordCard.addEventListener("keydown", event => {
+  if (learningMode === "quiz") {
+    if (["1", "2", "3"].includes(event.key)) {
+      event.preventDefault();
+      answerQuiz(Number(event.key) - 1);
+    }
+    return;
+  }
   if (event.key === "Enter" || event.key === " ") { event.preventDefault(); revealCard(); }
   if (event.key === "ArrowLeft") decide("unknown");
   if (event.key === "ArrowDown") decide("familiar");
@@ -874,6 +991,10 @@ els.familiarButton.addEventListener("click", () => decide("familiar"));
 els.knowButton.addEventListener("click", () => decide("mastered"));
 els.undoButton.addEventListener("click", undo);
 els.speakButton.addEventListener("click", event => { event.stopPropagation(); speak(); });
+els.quizOptions.addEventListener("click", event => {
+  const button = event.target.closest(".quiz-option");
+  if (button) answerQuiz(Number(button.dataset.index));
+});
 els.studyTab.addEventListener("click", () => setMode("study"));
 els.reviewTab.addEventListener("click", () => setMode("review"));
 els.recordTab.addEventListener("click", () => setMode("record"));
@@ -887,6 +1008,7 @@ els.userButton.addEventListener("click", () => els.settingsDialog.showModal());
 els.libraryButton.addEventListener("click", showLibraryChooser);
 els.switchListButton.addEventListener("click", showLibraryChooser);
 els.orderButton.addEventListener("click", () => setOrderMode(orderMode === "random" ? "sequential" : "random", true));
+els.learningModeButton.addEventListener("click", () => setLearningMode(learningMode === "quiz" ? "card" : "quiz", true));
 els.libraryGrid.addEventListener("click", event => {
   const button = event.target.closest("[data-list]");
   if (button) selectWordList(button.dataset.list);

@@ -1,4 +1,4 @@
-const CACHE = "vocabulary-cards-v9";
+const CACHE = "vocabulary-cards-v10";
 const ASSETS = ["./", "./index.html", "./styles.css", "./config.js", "./app.js", "./manifest.webmanifest", "./data/catalog.json", "./THIRD_PARTY_NOTICES.txt", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", event => {
