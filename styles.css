@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body { min-height: 100%; }
 
@@ -62,7 +63,7 @@ h1 span { color: var(--coral); font-style: italic; }
 .dot-know { background: var(--teal); }
 .dot-learn { background: var(--coral); }
 
-.mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; margin: 22px 0 16px; border-radius: 14px; background: rgba(21,39,56,.06); }
+.mode-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; margin: 22px 0 16px; border-radius: 14px; background: rgba(21,39,56,.06); }
 .tab { border: 0; border-radius: 10px; padding: 9px 12px; color: var(--muted); background: transparent; font-weight: 700; font-size: 13px; }
 .tab.active { color: var(--ink); background: var(--card); box-shadow: 0 2px 9px rgba(21,39,56,.08); }
 .tab span { min-width: 20px; display: inline-block; padding: 1px 6px; margin-left: 5px; border-radius: 9px; background: var(--coral-soft); color: var(--coral); font-size: 10px; }
@@ -115,6 +116,33 @@ h1 span { color: var(--coral); font-style: italic; }
 .empty-state h2 { margin: 0; font-family: Georgia, serif; font-size: 30px; }
 .empty-state p { margin: 10px auto 24px; max-width: 280px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .primary-button { border: 0; border-radius: 14px; padding: 13px 20px; background: var(--ink); color: white; font-weight: 700; }
+
+.record-panel { flex: 1; padding: 3px 0 8px; }
+.record-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 2px 0 24px; }
+.summary-tile { position: relative; min-height: 108px; padding: 17px 18px; overflow: hidden; border-radius: 20px; }
+.summary-tile::after { content: ""; position: absolute; width: 78px; height: 78px; right: -25px; bottom: -29px; border: 16px solid currentColor; border-radius: 50%; opacity: .08; }
+.summary-tile small { display: block; font-weight: 700; font-size: 12px; }
+.summary-tile strong { display: inline-block; margin: 9px 4px 0 0; font-family: Georgia, serif; font-size: 34px; line-height: 1; }
+.summary-tile span { font-size: 11px; opacity: .68; }
+.known-tile { color: #216a63; background: var(--teal-soft); }
+.learning-tile { color: #a83e33; background: var(--coral-soft); }
+.record-head { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-bottom: 12px; }
+.record-head h2 { margin: 0; font-family: Georgia, serif; font-size: 27px; }
+.record-filters { display: flex; padding: 3px; border-radius: 11px; background: rgba(21,39,56,.06); }
+.record-filter { border: 0; border-radius: 8px; padding: 7px 11px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 700; }
+.record-filter.active { color: var(--ink); background: var(--card); box-shadow: 0 2px 8px rgba(21,39,56,.08); }
+.record-list { display: grid; gap: 8px; max-height: min(48dvh, 430px); padding-right: 3px; overflow-y: auto; overscroll-behavior: contain; }
+.record-item { display: grid; grid-template-columns: 35px 1fr auto; align-items: center; gap: 10px; min-height: 62px; padding: 10px 13px; border: 1px solid rgba(21,39,56,.07); border-radius: 15px; background: rgba(255,253,248,.78); }
+.record-index { color: #aaa8a1; font-family: Georgia, serif; font-size: 10px; letter-spacing: .08em; }
+.record-word strong { display: block; font-family: Georgia, serif; font-size: 18px; }
+.record-word small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.record-status { padding: 4px 8px; border-radius: 10px; font-size: 9px; font-weight: 800; }
+.record-status.known { color: var(--teal); background: var(--teal-soft); }
+.record-status.learning { color: var(--coral); background: var(--coral-soft); }
+.record-empty { padding: 45px 0; color: var(--muted); text-align: center; font-size: 13px; }
+.record-review-button { width: 100%; margin-top: 13px; }
+.record-review-button:disabled { display: none; }
+.storage-note { margin: 12px 8px 0; color: #a29f97; text-align: center; font-size: 9px; line-height: 1.45; }
 
 dialog { width: min(calc(100% - 28px), 470px); padding: 0; border: 0; border-radius: 25px; background: var(--card); color: var(--ink); box-shadow: 0 28px 90px rgba(21,39,56,.3); }
 dialog::backdrop { background: rgba(21,39,56,.45); backdrop-filter: blur(4px); }

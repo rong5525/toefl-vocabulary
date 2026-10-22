@@ -42,9 +42,31 @@
       <nav class="mode-tabs" aria-label="学习模式">
         <button class="tab active" id="studyTab" type="button">学习</button>
         <button class="tab" id="reviewTab" type="button">复习 <span id="reviewBadge">0</span></button>
+        <button class="tab" id="recordTab" type="button">记录</button>
       </nav>
 
-      <section class="card-stage" aria-live="polite">
+      <section class="record-panel" id="recordPanel" hidden>
+        <div class="record-summary">
+          <div class="summary-tile known-tile"><small>已经会</small><strong id="recordKnownCount">0</strong><span>个单词</span></div>
+          <div class="summary-tile learning-tile"><small>还不会</small><strong id="recordLearningCount">0</strong><span>个单词</span></div>
+        </div>
+        <div class="record-head">
+          <div>
+            <p class="eyebrow">LOCAL PROGRESS</p>
+            <h2>学习记录</h2>
+          </div>
+          <div class="record-filters" aria-label="记录筛选">
+            <button class="record-filter active" id="recordLearningButton" type="button">不会</button>
+            <button class="record-filter" id="recordKnownButton" type="button">已会</button>
+          </div>
+        </div>
+        <div class="record-list" id="recordList"></div>
+        <div class="record-empty" id="recordEmpty" hidden>这里还没有单词</div>
+        <button class="primary-button record-review-button" id="recordReviewButton" type="button">复习不会的词</button>
+        <p class="storage-note">记录仅保存在这台设备上。清除 Safari 网站数据或删除 App 会清空记录。</p>
+      </section>
+
+      <section class="card-stage" id="cardStage" aria-live="polite">
         <div class="empty-state" id="emptyState" hidden>
           <div class="empty-icon">✓</div>
           <h2 id="emptyTitle">本轮完成</h2>
@@ -78,7 +100,7 @@
         <span>← 左滑：不会</span><span>右滑：已会 →</span>
       </div>
 
-      <section class="actions" aria-label="单词分类">
+      <section class="actions" id="actions" aria-label="单词分类">
         <button class="decision-button learn-button" id="dontKnowButton" type="button">
           <span class="button-icon">×</span>
           <span><small>SWIPE LEFT</small>还不会</span>
@@ -109,7 +131,7 @@
           <p>安装后可像普通 App 一样打开，学过的进度会保存在本机。</p>
         </section>
         <button class="danger-button" id="resetButton" type="button">清空全部学习进度</button>
-        <p class="version">TOEFL 100 · Version 1.0</p>
+        <p class="version">TOEFL 100 · Version 1.1</p>
       </form>
     </dialog>
 

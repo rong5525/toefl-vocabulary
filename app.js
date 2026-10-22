@@ -104,14 +104,16 @@ const WORDS = [
 const STORAGE_KEY = "toefl100-progress-v1";
 const els = Object.fromEntries([
   "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText",
-  "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","emptyState","emptyTitle",
-  "emptyCopy","emptyAction","dontKnowButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint"
+  "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","recordTab","emptyState","emptyTitle",
+  "emptyCopy","emptyAction","dontKnowButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
+  "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton"
 ].map(id => [id, document.getElementById(id)]));
 
 let state = loadState();
 let mode = "study";
 let reviewQueue = [];
 let reviewNextRound = [];
+let recordFilter = "learning";
 let revealed = false;
 let locked = false;
 let history = [];
@@ -172,7 +174,17 @@ function render() {
   els.reviewBadge.textContent = stats.learning;
   els.studyTab.classList.toggle("active", mode === "study");
   els.reviewTab.classList.toggle("active", mode === "review");
+  els.recordTab.classList.toggle("active", mode === "record");
   els.undoButton.disabled = history.length === 0;
+
+  if (mode === "record") {
+    renderRecord(stats);
+    return;
+  }
+
+  els.recordPanel.hidden = true;
+  els.cardStage.hidden = false;
+  els.actions.hidden = false;
 
   const word = currentWord();
   if (!word) {
@@ -197,6 +209,46 @@ function render() {
   const originalIndex = WORDS.indexOf(word) + 1;
   els.cardNumber.textContent = String(originalIndex).padStart(3, "0");
   els.wordCard.setAttribute("aria-label", `${word.w}，点击查看释义`);
+}
+
+function renderRecord(stats) {
+  els.recordPanel.hidden = false;
+  els.cardStage.hidden = true;
+  els.gestureHint.hidden = true;
+  els.actions.hidden = true;
+  els.recordKnownCount.textContent = stats.known;
+  els.recordLearningCount.textContent = stats.learning;
+  els.recordLearningButton.classList.toggle("active", recordFilter === "learning");
+  els.recordKnownButton.classList.toggle("active", recordFilter === "known");
+  els.recordReviewButton.disabled = stats.learning === 0;
+  els.recordList.replaceChildren();
+
+  const filtered = WORDS.filter(word => state.statuses[word.w] === recordFilter);
+  els.recordEmpty.hidden = filtered.length > 0;
+  els.recordList.hidden = filtered.length === 0;
+
+  filtered.forEach(word => {
+    const item = document.createElement("div");
+    item.className = "record-item";
+
+    const index = document.createElement("span");
+    index.className = "record-index";
+    index.textContent = String(WORDS.indexOf(word) + 1).padStart(3, "0");
+
+    const copy = document.createElement("div");
+    copy.className = "record-word";
+    const title = document.createElement("strong");
+    title.textContent = word.w;
+    const meaning = document.createElement("small");
+    meaning.textContent = word.z;
+    copy.append(title, meaning);
+
+    const status = document.createElement("span");
+    status.className = `record-status ${recordFilter}`;
+    status.textContent = recordFilter === "known" ? "已会" : "不会";
+    item.append(index, copy, status);
+    els.recordList.append(item);
+  });
 }
 
 function showEmpty(stats) {
@@ -336,6 +388,10 @@ els.undoButton.addEventListener("click", undo);
 els.speakButton.addEventListener("click", event => { event.stopPropagation(); speak(); });
 els.studyTab.addEventListener("click", () => setMode("study"));
 els.reviewTab.addEventListener("click", () => setMode("review"));
+els.recordTab.addEventListener("click", () => setMode("record"));
+els.recordLearningButton.addEventListener("click", () => { recordFilter = "learning"; render(); });
+els.recordKnownButton.addEventListener("click", () => { recordFilter = "known"; render(); });
+els.recordReviewButton.addEventListener("click", () => setMode("review"));
 els.settingsButton.addEventListener("click", () => els.settingsDialog.showModal());
 
 els.emptyAction.addEventListener("click", () => {
