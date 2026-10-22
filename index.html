@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="TOEFL 100" />
-    <meta name="description" content="左右滑动，把 100 个托福词汇分成已会和不会。" />
+    <meta name="description" content="左右与下滑学习 100 个托福词汇，记录 0–100% 熟悉度。" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -34,8 +34,8 @@
         <div class="progress-track"><div id="progressBar"></div></div>
         <div class="stats-row">
           <span><i class="dot dot-know"></i>已会 <b id="knownCount">0</b></span>
-          <span><i class="dot dot-learn"></i>不会 <b id="learningCount">0</b></span>
-          <span>剩余 <b id="remainingCount">100</b></span>
+          <span><i class="dot dot-learn"></i>未掌握 <b id="learningCount">0</b></span>
+          <span>未学习 <b id="remainingCount">100</b></span>
         </div>
       </section>
 
@@ -48,7 +48,7 @@
       <section class="record-panel" id="recordPanel" hidden>
         <div class="record-summary">
           <div class="summary-tile known-tile"><small>已经会</small><strong id="recordKnownCount">0</strong><span>个单词</span></div>
-          <div class="summary-tile learning-tile"><small>还不会</small><strong id="recordLearningCount">0</strong><span>个单词</span></div>
+          <div class="summary-tile learning-tile"><small>还未掌握</small><strong id="recordLearningCount">0</strong><span>个单词</span></div>
         </div>
         <div class="record-head">
           <div>
@@ -56,7 +56,7 @@
             <h2>学习记录</h2>
           </div>
           <div class="record-filters" aria-label="记录筛选">
-            <button class="record-filter active" id="recordLearningButton" type="button">不会</button>
+            <button class="record-filter active" id="recordLearningButton" type="button">未掌握</button>
             <button class="record-filter" id="recordKnownButton" type="button">已会</button>
           </div>
         </div>
@@ -67,9 +67,9 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>
             导出 Excel CSV
           </button>
-          <button class="primary-button record-review-button" id="recordReviewButton" type="button">复习不会的词</button>
+          <button class="primary-button record-review-button" id="recordReviewButton" type="button">复习未掌握的词</button>
         </div>
-        <p class="export-note">导出全部 100 个单词，包含“已会 / 不会 / 未学习”状态，可直接用 Excel 打开。</p>
+        <p class="export-note">导出全部 100 个单词，包含星级、熟悉百分比、复习次数和最后学习时间，可直接用 Excel 打开。</p>
         <p class="storage-note">记录仅保存在这台设备上。清除 Safari 网站数据或删除 App 会清空记录。</p>
       </section>
 
@@ -78,12 +78,13 @@
           <div class="empty-icon">✓</div>
           <h2 id="emptyTitle">本轮完成</h2>
           <p id="emptyCopy">100 个单词已经全部分类。</p>
-          <button class="primary-button" id="emptyAction" type="button">复习不会的词</button>
+          <button class="primary-button" id="emptyAction" type="button">复习未掌握的词</button>
         </div>
 
         <article class="word-card" id="wordCard" tabindex="0" aria-label="单词卡，点击查看释义">
           <div class="swipe-stamp stamp-left">不会</div>
           <div class="swipe-stamp stamp-right">已会</div>
+          <div class="swipe-stamp stamp-down" id="downStamp">+ 1 ★</div>
           <div class="card-number" id="cardNumber">001</div>
           <div class="card-front">
             <button class="speak-button" id="speakButton" type="button" aria-label="朗读单词">
@@ -92,6 +93,10 @@
             <p class="part" id="partOfSpeech">adj.</p>
             <h2 id="wordText">abundant</h2>
             <p class="phonetic" id="phoneticText">/əˈbʌndənt/</p>
+            <div class="familiarity-meter" id="familiarityMeter" aria-label="当前熟悉度">
+              <span id="starText">☆☆☆☆☆</span>
+              <small id="familiarityText">未标记</small>
+            </div>
             <p class="tap-hint" id="tapHint">轻点卡片 · 查看释义</p>
           </div>
           <div class="card-answer" id="cardAnswer" hidden>
@@ -104,7 +109,7 @@
       </section>
 
       <div class="gesture-hint" id="gestureHint">
-        <span>← 左滑：不会</span><span>右滑：已会 →</span>
+        <span>← 0%</span><span>↓ 熟悉 +1★</span><span>100% →</span>
       </div>
 
       <section class="actions" id="actions" aria-label="单词分类">
@@ -112,12 +117,16 @@
           <span class="button-icon">×</span>
           <span><small>SWIPE LEFT</small>还不会</span>
         </button>
-        <button class="undo-button" id="undoButton" type="button" disabled aria-label="撤销上一次分类">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 5 11l4 4"/><path d="M5 11h7a6 6 0 1 1 0 12"/></svg>
+        <button class="decision-button familiar-button" id="familiarButton" type="button">
+          <span class="button-icon">★</span>
+          <span><small>SWIPE DOWN</small>熟悉 +1</span>
         </button>
         <button class="decision-button know-button" id="knowButton" type="button">
           <span class="button-icon">✓</span>
           <span><small>SWIPE RIGHT</small>已经会</span>
+        </button>
+        <button class="undo-button" id="undoButton" type="button" disabled aria-label="撤销上一次分类">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 5 11l4 4"/><path d="M5 11h7a6 6 0 1 1 0 12"/></svg>
         </button>
       </section>
     </main>
@@ -138,7 +147,7 @@
           <p>安装后可像普通 App 一样打开，学过的进度会保存在本机。</p>
         </section>
         <button class="danger-button" id="resetButton" type="button">清空全部学习进度</button>
-        <p class="version">TOEFL 100 · Version 1.2</p>
+        <p class="version">TOEFL 100 · Version 1.3</p>
       </form>
     </dialog>
 

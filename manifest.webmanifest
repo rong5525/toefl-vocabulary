@@ -1,7 +1,7 @@
 {
   "name": "TOEFL 100 单词卡",
   "short_name": "TOEFL 100",
-  "description": "左右滑动，把 100 个托福词汇分成已会和不会。",
+  "description": "左右与下滑学习 100 个托福词汇，记录 0–100% 熟悉度。",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

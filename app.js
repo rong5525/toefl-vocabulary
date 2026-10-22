@@ -101,11 +101,14 @@ const WORDS = [
   {w:"adjacent",p:"/əˈdʒeɪsənt/",t:"adj.",z:"邻近的；毗连的",d:"next to or very near something",e:"The market served villages adjacent to the river."}
 ];
 
-const STORAGE_KEY = "toefl100-progress-v1";
+const STORAGE_KEY = "toefl100-progress-v2";
+const LEGACY_STORAGE_KEY = "toefl100-progress-v1";
+const STAR_PERCENTAGES = [0, 20, 40, 60, 80, 90];
 const els = Object.fromEntries([
   "wordCard","cardAnswer","tapHint","cardNumber","partOfSpeech","wordText","phoneticText","meaningText","definitionText","exampleText",
   "knownCount","learningCount","remainingCount","progressText","progressBar","reviewBadge","studyTab","reviewTab","recordTab","emptyState","emptyTitle",
-  "emptyCopy","emptyAction","dontKnowButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
+  "emptyCopy","emptyAction","dontKnowButton","familiarButton","knowButton","undoButton","speakButton","settingsButton","settingsDialog","resetButton","toast","gestureHint",
+  "familiarityMeter","starText","familiarityText","downStamp",
   "cardStage","actions","recordPanel","recordKnownCount","recordLearningCount","recordLearningButton","recordKnownButton","recordList","recordEmpty","recordReviewButton","exportButton"
 ].map(id => [id, document.getElementById(id)]));
 
@@ -122,9 +125,26 @@ let drag = null;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.statuses && typeof saved.statuses === "object") return saved;
+    if (saved && saved.progress && typeof saved.progress === "object") return saved;
   } catch (_) {}
-  return { statuses: {} };
+  try {
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
+    if (legacy?.statuses && typeof legacy.statuses === "object") {
+      const migrated = { progress: {} };
+      Object.entries(legacy.statuses).forEach(([word, status]) => {
+        migrated.progress[word] = {
+          stars: status === "known" ? 5 : 0,
+          percent: status === "known" ? 100 : 0,
+          reviews: 1,
+          lastAction: status === "known" ? "mastered" : "unknown",
+          updatedAt: null
+        };
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+  } catch (_) {}
+  return { progress: {} };
 }
 
 function saveState() {
@@ -132,22 +152,37 @@ function saveState() {
 }
 
 function counts() {
-  const values = Object.values(state.statuses);
-  const known = values.filter(v => v === "known").length;
-  const learning = values.filter(v => v === "learning").length;
+  const values = Object.values(state.progress);
+  const known = values.filter(v => v.percent === 100).length;
+  const learning = values.filter(v => v.percent < 100).length;
   return { known, learning, remaining: WORDS.length - known - learning };
 }
 
 function studyWords() {
-  return WORDS.filter(word => !state.statuses[word.w]);
+  return WORDS.filter(word => !state.progress[word.w]);
 }
 
 function learningWords() {
-  return WORDS.filter(word => state.statuses[word.w] === "learning");
+  return WORDS.filter(word => state.progress[word.w] && state.progress[word.w].percent < 100);
 }
 
 function currentWord() {
   return mode === "study" ? studyWords()[0] : reviewQueue[0];
+}
+
+function progressFor(word) {
+  return state.progress[word.w] ?? null;
+}
+
+function starString(stars) {
+  return "★".repeat(stars) + "☆".repeat(5 - stars);
+}
+
+function progressLabel(entry) {
+  if (!entry) return "未标记";
+  if (entry.percent === 100) return "完全掌握 · 100%";
+  if (entry.stars === 0) return "完全不会 · 0%";
+  return `${entry.stars} 星熟悉 · ${entry.percent}%`;
 }
 
 function setMode(nextMode) {
@@ -196,6 +231,7 @@ function render() {
   els.wordCard.hidden = false;
   els.gestureHint.hidden = false;
   els.dontKnowButton.disabled = false;
+  els.familiarButton.disabled = false;
   els.knowButton.disabled = false;
   revealed = false;
   els.cardAnswer.hidden = true;
@@ -206,6 +242,12 @@ function render() {
   els.meaningText.textContent = word.z;
   els.definitionText.textContent = word.d;
   els.exampleText.textContent = word.e;
+  const entry = progressFor(word);
+  els.starText.textContent = starString(entry?.stars ?? 0);
+  els.familiarityText.textContent = progressLabel(entry);
+  els.familiarityMeter.setAttribute("aria-label", progressLabel(entry));
+  const nextStars = Math.min((entry?.stars ?? 0) + 1, 5);
+  els.downStamp.textContent = nextStars === 5 && entry?.stars === 5 ? "保持 5 ★" : `+ ${nextStars} ★`;
   const originalIndex = WORDS.indexOf(word) + 1;
   els.cardNumber.textContent = String(originalIndex).padStart(3, "0");
   els.wordCard.setAttribute("aria-label", `${word.w}，点击查看释义`);
@@ -223,11 +265,16 @@ function renderRecord(stats) {
   els.recordReviewButton.disabled = stats.learning === 0;
   els.recordList.replaceChildren();
 
-  const filtered = WORDS.filter(word => state.statuses[word.w] === recordFilter);
+  const filtered = WORDS.filter(word => {
+    const entry = progressFor(word);
+    if (!entry) return false;
+    return recordFilter === "known" ? entry.percent === 100 : entry.percent < 100;
+  });
   els.recordEmpty.hidden = filtered.length > 0;
   els.recordList.hidden = filtered.length === 0;
 
   filtered.forEach(word => {
+    const entry = progressFor(word);
     const item = document.createElement("div");
     item.className = "record-item";
 
@@ -244,8 +291,9 @@ function renderRecord(stats) {
     copy.append(title, meaning);
 
     const status = document.createElement("span");
-    status.className = `record-status ${recordFilter}`;
-    status.textContent = recordFilter === "known" ? "已会" : "不会";
+    const statusClass = entry.percent === 100 ? "known" : entry.stars === 0 ? "unknown" : "partial";
+    status.className = `record-status ${statusClass}`;
+    status.textContent = entry.percent === 100 ? "100%" : entry.stars === 0 ? "0%" : `${entry.stars}★ ${entry.percent}%`;
     item.append(index, copy, status);
     els.recordList.append(item);
   });
@@ -256,12 +304,13 @@ function showEmpty(stats) {
   els.emptyState.hidden = false;
   els.gestureHint.hidden = true;
   els.dontKnowButton.disabled = true;
+  els.familiarButton.disabled = true;
   els.knowButton.disabled = true;
 
   if (mode === "study") {
-    els.emptyTitle.textContent = "100 词分类完成";
-    els.emptyCopy.textContent = stats.learning ? `已会 ${stats.known} 个，还有 ${stats.learning} 个需要复习。` : "太棒了，100 个单词你已经全部掌握。";
-    els.emptyAction.textContent = stats.learning ? "复习不会的词" : "重新开始";
+    els.emptyTitle.textContent = "100 词初筛完成";
+    els.emptyCopy.textContent = stats.learning ? `已掌握 ${stats.known} 个，还有 ${stats.learning} 个需要继续提高熟悉度。` : "太棒了，100 个单词你已经全部掌握。";
+    els.emptyAction.textContent = stats.learning ? "继续分级复习" : "重新开始";
   } else {
     els.emptyTitle.textContent = "本轮复习完成";
     els.emptyCopy.textContent = reviewNextRound.length ? `这一轮还有 ${reviewNextRound.length} 个词需要继续巩固。` : "这一轮的单词已经全部掌握。";
@@ -279,30 +328,41 @@ function revealCard() {
 
 function snapshot() {
   return {
-    statuses: { ...state.statuses },
+    progress: JSON.parse(JSON.stringify(state.progress)),
     mode,
     reviewQueue: [...reviewQueue],
     reviewNextRound: [...reviewNextRound]
   };
 }
 
-function decide(result) {
+function updatedProgress(word, action) {
+  const current = progressFor(word);
+  const reviews = (current?.reviews ?? 0) + 1;
+  const base = { reviews, lastAction: action, updatedAt: new Date().toISOString() };
+  if (action === "mastered") return { ...base, stars: 5, percent: 100 };
+  if (action === "unknown") return { ...base, stars: 0, percent: 0 };
+  const stars = Math.min((current?.stars ?? 0) + 1, 5);
+  return { ...base, stars, percent: STAR_PERCENTAGES[stars] };
+}
+
+function decide(action) {
   if (locked) return;
   const word = currentWord();
   if (!word) return;
   locked = true;
   history.push(snapshot());
   if (history.length > 20) history.shift();
-  els.wordCard.classList.add(result === "known" ? "exit-right" : "exit-left");
+  const exitClass = action === "mastered" ? "exit-right" : action === "familiar" ? "exit-down" : "exit-left";
+  els.wordCard.classList.add(exitClass);
 
   setTimeout(() => {
-    state.statuses[word.w] = result;
+    state.progress[word.w] = updatedProgress(word, action);
     if (mode === "review") {
       reviewQueue.shift();
-      if (result === "learning") reviewNextRound.push(word);
+      if (action !== "mastered") reviewNextRound.push(word);
     }
     saveState();
-    els.wordCard.classList.remove("exit-left", "exit-right");
+    els.wordCard.classList.remove("exit-left", "exit-right", "exit-down");
     els.wordCard.classList.add("enter");
     render();
     locked = false;
@@ -313,7 +373,7 @@ function decide(result) {
 function undo() {
   if (!history.length || locked) return;
   const previous = history.pop();
-  state.statuses = previous.statuses;
+  state.progress = previous.progress;
   mode = previous.mode;
   reviewQueue = previous.reviewQueue;
   reviewNextRound = previous.reviewNextRound;
@@ -344,11 +404,27 @@ function csvCell(value) {
 }
 
 function buildExportFile() {
-  const header = ["序号", "单词", "学习状态", "音标", "词性", "中文释义", "英文解释", "例句"];
+  const header = ["序号", "单词", "学习状态", "星级", "熟悉百分比", "复习次数", "最后动作", "最后学习时间", "音标", "词性", "中文释义", "英文解释", "例句"];
   const rows = WORDS.map((word, index) => {
-    const savedStatus = state.statuses[word.w];
-    const status = savedStatus === "known" ? "已会" : savedStatus === "learning" ? "不会" : "未学习";
-    return [index + 1, word.w, status, word.p, word.t, word.z, word.d, word.e];
+    const entry = progressFor(word);
+    const status = !entry ? "未学习" : entry.percent === 100 ? "完全掌握" : entry.stars === 0 ? "完全不会" : "学习中";
+    const actionNames = { unknown: "左滑：不会", familiar: "下滑：熟悉度 +1", mastered: "右滑：掌握" };
+    const updatedAt = entry?.updatedAt ? new Date(entry.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "";
+    return [
+      index + 1,
+      word.w,
+      status,
+      entry ? entry.stars : "",
+      entry ? `${entry.percent}%` : "",
+      entry?.reviews ?? 0,
+      entry ? actionNames[entry.lastAction] : "",
+      updatedAt,
+      word.p,
+      word.t,
+      word.z,
+      word.d,
+      word.e
+    ];
   });
   const csv = "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
   const day = new Date().toLocaleDateString("en-CA");
@@ -390,6 +466,7 @@ function resetDrag() {
   els.wordCard.style.transform = "";
   els.wordCard.querySelector(".stamp-left").style.opacity = 0;
   els.wordCard.querySelector(".stamp-right").style.opacity = 0;
+  els.wordCard.querySelector(".stamp-down").style.opacity = 0;
   drag = null;
 }
 
@@ -404,32 +481,45 @@ els.wordCard.addEventListener("pointermove", event => {
   if (!drag) return;
   drag.dx = event.clientX - drag.x;
   drag.dy = event.clientY - drag.y;
-  if (Math.abs(drag.dx) > 8) drag.moved = true;
-  if (Math.abs(drag.dx) <= Math.abs(drag.dy)) return;
-  const rotation = drag.dx / 22;
-  els.wordCard.style.transform = `translate3d(${drag.dx}px, 0, 0) rotate(${rotation}deg)`;
-  const opacity = Math.min(Math.abs(drag.dx) / 100, 1);
-  els.wordCard.querySelector(".stamp-left").style.opacity = drag.dx < 0 ? opacity : 0;
-  els.wordCard.querySelector(".stamp-right").style.opacity = drag.dx > 0 ? opacity : 0;
+  if (Math.abs(drag.dx) > 8 || Math.abs(drag.dy) > 8) drag.moved = true;
+  const horizontal = Math.abs(drag.dx) > Math.abs(drag.dy);
+  if (horizontal) {
+    const rotation = drag.dx / 22;
+    els.wordCard.style.transform = `translate3d(${drag.dx}px, 0, 0) rotate(${rotation}deg)`;
+    const opacity = Math.min(Math.abs(drag.dx) / 100, 1);
+    els.wordCard.querySelector(".stamp-left").style.opacity = drag.dx < 0 ? opacity : 0;
+    els.wordCard.querySelector(".stamp-right").style.opacity = drag.dx > 0 ? opacity : 0;
+    els.wordCard.querySelector(".stamp-down").style.opacity = 0;
+  } else {
+    const downward = Math.max(drag.dy, 0);
+    const resisted = drag.dy < 0 ? drag.dy * 0.12 : drag.dy;
+    els.wordCard.style.transform = `translate3d(0, ${resisted}px, 0) scale(${1 - Math.min(downward / 1000, .06)})`;
+    els.wordCard.querySelector(".stamp-left").style.opacity = 0;
+    els.wordCard.querySelector(".stamp-right").style.opacity = 0;
+    els.wordCard.querySelector(".stamp-down").style.opacity = Math.min(downward / 90, 1);
+  }
 });
 
 els.wordCard.addEventListener("pointerup", () => {
   if (!drag) return;
-  const { dx, moved } = drag;
+  const { dx, dy, moved } = drag;
   resetDrag();
-  if (Math.abs(dx) >= 78) decide(dx > 0 ? "known" : "learning");
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) >= 78) decide(dx > 0 ? "mastered" : "unknown");
+  else if (dy > Math.abs(dx) && dy >= 70) decide("familiar");
   else if (!moved) revealCard();
 });
 
 els.wordCard.addEventListener("pointercancel", resetDrag);
 els.wordCard.addEventListener("keydown", event => {
   if (event.key === "Enter" || event.key === " ") { event.preventDefault(); revealCard(); }
-  if (event.key === "ArrowLeft") decide("learning");
-  if (event.key === "ArrowRight") decide("known");
+  if (event.key === "ArrowLeft") decide("unknown");
+  if (event.key === "ArrowDown") decide("familiar");
+  if (event.key === "ArrowRight") decide("mastered");
 });
 
-els.dontKnowButton.addEventListener("click", () => decide("learning"));
-els.knowButton.addEventListener("click", () => decide("known"));
+els.dontKnowButton.addEventListener("click", () => decide("unknown"));
+els.familiarButton.addEventListener("click", () => decide("familiar"));
+els.knowButton.addEventListener("click", () => decide("mastered"));
 els.undoButton.addEventListener("click", undo);
 els.speakButton.addEventListener("click", event => { event.stopPropagation(); speak(); });
 els.studyTab.addEventListener("click", () => setMode("study"));
@@ -446,7 +536,7 @@ els.emptyAction.addEventListener("click", () => {
   if (mode === "study") {
     if (stats.learning) setMode("review");
     else {
-      state = { statuses: {} };
+      state = { progress: {} };
       saveState();
       render();
     }
@@ -460,7 +550,7 @@ els.emptyAction.addEventListener("click", () => {
 
 els.resetButton.addEventListener("click", () => {
   if (!window.confirm("确定要清空全部学习进度吗？")) return;
-  state = { statuses: {} };
+  state = { progress: {} };
   mode = "study";
   reviewQueue = [];
   reviewNextRound = [];

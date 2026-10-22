@@ -1,4 +1,4 @@
-const CACHE = "toefl-100-v4";
+const CACHE = "toefl-100-v5";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", event => {
