@@ -1,5 +1,5 @@
-const CACHE = "vocabulary-cards-v13";
-const ASSETS = ["./", "./index.html", "./styles.css?v=32", "./config.js?v=32", "./app.js?v=32", "./manifest.webmanifest?v=32", "./data/catalog.json", "./THIRD_PARTY_NOTICES.txt", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const CACHE = "vocabulary-cards-v14";
+const ASSETS = ["./", "./index.html", "./styles.css?v=33", "./config.js?v=33", "./app.js?v=33", "./manifest.webmanifest?v=33", "./data/catalog.json", "./THIRD_PARTY_NOTICES.txt", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
